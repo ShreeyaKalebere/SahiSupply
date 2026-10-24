@@ -150,4 +150,17 @@ describe("SahiSupply workspace", () => {
       network: { warehouses: ["W4"], outlets: null, route_overrides: { "W4-D9": false } },
     })));
   });
+
+  it("falls back to a valid business when the remembered one no longer exists", async () => {
+    const store: Record<string, string> = { "sahisupply.module": "food" };
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store[k] ?? null, setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; }, clear: () => undefined,
+    });
+    renderAt("/");
+    expect(await screen.findByRole("tab", { name: "Pharmacy" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(mocks.dashboard).toHaveBeenLastCalledWith("pharmacy", true));
+    expect(store["sahisupply.module"]).toBe("pharmacy");
+    vi.unstubAllGlobals();
+  });
 });

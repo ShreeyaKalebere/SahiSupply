@@ -63,6 +63,13 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
       .then(([m, s]) => {
         setModules(m.data);
         setScenarios(s.data);
+        // A remembered module may no longer exist (e.g. Food Distribution was replaced): fall back to a valid one.
+        setModuleState((cur) => {
+          if (m.data.some((x) => x.industry === cur)) return cur;
+          const next = m.data.find((x) => x.industry === "pharmacy")?.industry ?? m.data[0]?.industry ?? cur;
+          writePref("module", next);
+          return next;
+        });
       })
       .catch((e: ApiError) => setBootError(e));
   }, []);
