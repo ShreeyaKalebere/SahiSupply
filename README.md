@@ -180,7 +180,11 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
   at or above the threshold (default 64.5 mm/day, IMD "heavy rain") can be closed and the plan re-made (What-if page).
   Only the weather is live; stock and demand remain synthetic. If the service is unreachable the API returns 503 - no
   weather is invented
-* Animated maps: deliveries move from warehouse to store; closed/unconnected roads are red dotted lines
+* Animated maps: small 3D delivery trucks drive slowly along curved, fading arcs from warehouse to store; sending
+  warehouses pulse; closed/unconnected roads are red dotted lines. The truck is rendered from
+  `frontend/public/models/delivery_truck.glb` with three.js (16 headings, loaded on demand).
+  **Model credit:** "Delivery Truck" by [Jasmin Daniel](https://sketchfab.com/jasmin.daniel),
+  [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/) - also shown in the map attribution
 * P1-01 equity guardrail with cost of fairness · P1-02 disruption-regret score · P1-03 Leaflet map with list
   fallback · P1-05 F2/C3 storage rules and S4 cold-room failure
 * MongoDB persistence (runs, overrides, forecast metrics), labelled snapshot fallback, JSON logs, `/api/metrics`

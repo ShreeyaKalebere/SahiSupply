@@ -30,7 +30,7 @@ vi.mock("../api/client", async (orig) => {
 vi.mock("react-leaflet", () => {
   const Box = ({ children }: { children?: React.ReactNode }) => <div data-testid="leaflet">{children}</div>;
   const Leaf = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
-  return { MapContainer: Box, TileLayer: () => null, Polyline: Leaf, CircleMarker: Leaf, Tooltip: Leaf };
+  return { MapContainer: Box, TileLayer: () => null, Polyline: Leaf, CircleMarker: Leaf, Tooltip: Leaf, useMap: () => null };
 });
 vi.mock("recharts", async (orig) => {
   const actual = await orig<typeof import("recharts")>();
