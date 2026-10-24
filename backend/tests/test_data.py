@@ -20,7 +20,7 @@ def test_pharmacy_has_5_critical_and_4_cold_products(datasets):
 
 
 def test_same_seed_is_byte_identical_and_seed_matters():
-    for m in ("pharmacy", "grocery", "food"):
+    for m in ("pharmacy", "grocery", "cosmetics"):
         assert dataset_sha256(generate_dataset(m)) == dataset_sha256(generate_dataset(m))
     assert dataset_sha256(generate_dataset("pharmacy", seed=42)) != dataset_sha256(generate_dataset("pharmacy", seed=7))
 
@@ -45,7 +45,7 @@ def test_lead_time_follows_distance_rule(datasets):
 
 
 def test_contested_pattern_only_changes_routes():
-    on, off = generate_dataset("food", contested_pattern=True), generate_dataset("food", contested_pattern=False)
+    on, off = generate_dataset("cosmetics", contested_pattern=True), generate_dataset("cosmetics", contested_pattern=False)
     for k in ("warehouses", "outlets", "products", "batches", "demand_history", "outlet_inventory"):
         assert on[k] == off[k], k
     assert all(r["open"] for r in off["routes"])

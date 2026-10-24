@@ -25,7 +25,7 @@ def main() -> None:
     out_dir = REPO_ROOT / "data" / "snapshots"
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = {}
-    for module in ("pharmacy", "grocery", "food"):
+    for module in ("pharmacy", "grocery", "cosmetics"):
         for pattern in (True, False):
             ds = generate_dataset(module, seed=args.seed, contested_pattern=pattern)
             name = f"{module}_seed{args.seed}_{'contested' if pattern else 'uncontested'}_v1.json.gz"

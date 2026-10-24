@@ -49,7 +49,7 @@ def run_seed(module: str, seed: int, scenarios=SCENARIOS, **gen) -> list[dict]:
     return out
 
 
-@pytest.mark.parametrize("module", ["pharmacy", "grocery", "food"])
+@pytest.mark.parametrize("module", ["pharmacy", "grocery", "cosmetics"])
 def test_ten_seeds_zero_violations(module):
     rows = [r for s in range(10) for r in run_seed(module, 1000 + s)]
     assert all(r["status"] in ("OPTIMAL", "FEASIBLE") for r in rows)
@@ -58,7 +58,7 @@ def test_ten_seeds_zero_violations(module):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("module", ["pharmacy", "grocery", "food"])
+@pytest.mark.parametrize("module", ["pharmacy", "grocery", "cosmetics"])
 def test_hundred_seeds_zero_violations(module):
     rows = [r for s in range(100) for r in run_seed(module, s)]
     bad = [r for r in rows if r["opt_violations"] or r["base_violations"] or r["status"] not in ("OPTIMAL", "FEASIBLE")]

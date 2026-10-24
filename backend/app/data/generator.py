@@ -156,7 +156,7 @@ def generate_dataset(
     base = np.array([p["_base"] for p in products])
     mix = rng.uniform(0.6, 1.4, size=(D, P))  # outlet-specific product mix
     if module != "pharmacy":
-        # grocery/food outlets without a chiller sell little chilled product
+        # grocery/cosmetics outlets without cool storage sell little chilled product
         for di, o in enumerate(outlets):
             for pi, p in enumerate(products):
                 if p["storage_class"] != "ambient" and p["storage_class"] not in o["storage"]:

@@ -75,6 +75,12 @@ export default function OverviewPage() {
   );
 }
 
+/** Lower is better: green arrow only when strictly better, red when worse, plain hint on a tie. */
+function vsManual(ours: number, manual: number) {
+  if (ours === manual) return { hint: "same as manual planning" };
+  return { trend: { text: `manual planning: ${fmtInt(manual)} units`, good: ours < manual } };
+}
+
 function PlanSummary({ run }: { run: Run }) {
   const { whName } = useNetwork(run.module);
   const [open, setOpen] = useState<string | null>(null);
@@ -102,10 +108,10 @@ function PlanSummary({ run }: { run: Run }) {
           hint={`${shortLines} of ${run.allocation.length} store orders not fully sent`} />
         {isPharma ? (
           <StatCard label="Critical medicines short" icon={HeartPulse} tone="amber" value={`${fmtInt(k.critical_shortage_units)} units`}
-            trend={{ text: `manual planning: ${fmtInt(b.critical_shortage_units)} units`, good: k.critical_shortage_units <= b.critical_shortage_units }} />
+            {...vsManual(k.critical_shortage_units, b.critical_shortage_units)} />
         ) : (
           <StatCard label="Stock expiring soon" icon={Clock} tone="amber" value={`${fmtInt(k.expiry_risk_units)} units`}
-            trend={{ text: `manual planning: ${fmtInt(b.expiry_risk_units)} units`, good: k.expiry_risk_units <= b.expiry_risk_units }} />
+            {...vsManual(k.expiry_risk_units, b.expiry_risk_units)} />
         )}
         <StatCard label="Delivery cost" icon={IndianRupee} tone="green" value={fmtRs(k.transport_cost)} hint={`${fmtRs(k.cost_per_delivered_unit, 2)} per unit delivered`} />
       </div>

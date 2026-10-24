@@ -22,7 +22,7 @@ def pytest_configure(config):
 
 @pytest.fixture(scope="session")
 def datasets():
-    return {m: generate_dataset(m) for m in ("pharmacy", "grocery", "food")}
+    return {m: generate_dataset(m) for m in ("pharmacy", "grocery", "cosmetics")}
 
 
 @pytest.fixture(scope="session")

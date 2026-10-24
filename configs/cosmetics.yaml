@@ -1,0 +1,27 @@
+industry: cosmetics
+display_name: Cosmetics Retail
+description: Beauty-product allocation to beauty stores, salons and department stores (push network).
+destination_types: [beauty_store, salon, department_store]
+planning:
+  review_period_days: 7
+  need_source: forecast
+service_levels:
+  critical: 1.28
+  standard: 1.28   # 90%
+kpis: [fill_rate, expiry_risk_units, freshness_on_arrival_pct]
+rules:
+  - id: K1
+    template: min_life_on_arrival
+    params: { min_pct: 30 }
+    status: active
+    description: Block a batch if less than 30% of its shelf life remains on arrival, so products are not near expiry on the shelf.
+  - id: K2
+    template: storage_match
+    params: { classes: ["chilled"] }
+    status: active
+    description: Temperature-sensitive skincare (serums, retinol, fresh masks) only goes to stores with cool storage.
+  - id: K3
+    template: fefo
+    params: { enabled: true }
+    status: active
+    description: Ship earlier-expiring batches first as a bounded tie-break.

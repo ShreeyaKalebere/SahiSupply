@@ -7,9 +7,9 @@ from app.modules.rules import resolve_rules
 
 def test_all_three_modules_load_through_one_loader():
     cfgs = load_all_configs()
-    assert set(cfgs) == {"grocery", "food", "pharmacy"}
+    assert set(cfgs) == {"grocery", "cosmetics", "pharmacy"}
     assert cfgs["grocery"].planning.need_source == "orders"
-    assert cfgs["food"].planning.need_source == "forecast"
+    assert cfgs["cosmetics"].planning.need_source == "forecast"
     assert cfgs["pharmacy"].planning.need_source == "forecast"
 
 
@@ -17,8 +17,8 @@ def test_p0_rule_thresholds_match_prd():
     c = load_all_configs()
     g = resolve_rules(c["grocery"])
     assert g.min_life_days == 3 and g.fefo
-    f = resolve_rules(c["food"])
-    assert f.min_life_pct == 40
+    k = resolve_rules(c["cosmetics"])
+    assert k.min_life_pct == 30 and k.storage_classes == {"chilled"} and k.fefo
     p = resolve_rules(c["pharmacy"])
     assert p.min_life_days == 90
     assert p.shortage_weights["critical"] == 10 and p.shortage_weights["standard"] == 1

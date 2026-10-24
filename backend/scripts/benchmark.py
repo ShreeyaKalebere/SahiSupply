@@ -22,7 +22,7 @@ from app.optimization.model import solve  # noqa: E402
 from app.services import views  # noqa: E402
 from app.services.planner import prepare_problem  # noqa: E402
 
-MODULES = ("pharmacy", "grocery", "food")
+MODULES = ("pharmacy", "grocery", "cosmetics")
 
 
 def pct(xs, q):

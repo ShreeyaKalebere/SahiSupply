@@ -1,6 +1,6 @@
 // Types mirroring the FastAPI response shapes (see docs/api.md).
 
-export type ModuleId = "pharmacy" | "grocery" | "food" | string;
+export type ModuleId = "pharmacy" | "grocery" | "cosmetics" | string;
 export type ScenarioId = "S0" | "S1" | "S2" | "S3" | "S4";
 export type DataSource = "mongodb" | "snapshot";
 

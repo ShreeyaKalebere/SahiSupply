@@ -1,8 +1,8 @@
 // Plain-language wording used across the UI. Technical terms stay behind "details" toggles.
 import type { AllocationRow, Alternative, InsightItem, ScenarioId } from "../types/api";
 
-export const MODULE_LABEL: Record<string, string> = { pharmacy: "Pharmacy", grocery: "Grocery", food: "Food Distribution" };
-export const STORE_WORD: Record<string, string> = { pharmacy: "pharmacies, clinics & hospitals", grocery: "kiranas & supermarkets", food: "restaurants & distributors" };
+export const MODULE_LABEL: Record<string, string> = { pharmacy: "Pharmacy", grocery: "Grocery", cosmetics: "Cosmetics" };
+export const STORE_WORD: Record<string, string> = { pharmacy: "pharmacies, clinics & hospitals", grocery: "kiranas & supermarkets", cosmetics: "beauty stores, salons & department stores" };
 
 export const SCENARIO_TEXT: Record<ScenarioId, { name: string; text: string }> = {
   S0: { name: "Normal week", text: "No problems - a regular week." },
@@ -50,7 +50,9 @@ export function ruleSentence(template: string, params: Record<string, unknown>):
       return params.min_days !== undefined
         ? `Products must still have at least ${params.min_days} days before expiry when they reach the store.`
         : `Products must still have at least ${params.min_pct}% of their shelf life left when they reach the store.`;
-    case "storage_match": return `Cold items (${(params.classes as string[]).join(", ")}) only go to stores that have the right fridge.`;
+    case "storage_match": return (params.classes as string[]).includes("2-8C")
+      ? "Medicines that must stay at 2-8 °C only go to stores with the right fridge."
+      : "Temperature-sensitive items only go to stores with cool storage.";
     case "shortage_weight": return `When stock is short, critical items get ${(params.weights as Record<string, number>).critical}× priority over standard items.`;
     case "fefo": return "Send the stock that expires first, first (FEFO).";
     case "min_fill_floor": return `Fair share: every store gets at least ${params.floor_pct}% of its critical items whenever stock allows.`;

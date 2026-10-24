@@ -8,12 +8,12 @@ def test_health_and_modules(client):
     h = client.get("/api/health").json()["data"]
     assert h["mongodb"]["connected"] and h["solver"]["scip"]
     mods = client.get("/api/modules").json()["data"]
-    assert {m["industry"] for m in mods} == {"grocery", "food", "pharmacy"}
+    assert {m["industry"] for m in mods} == {"grocery", "cosmetics", "pharmacy"}
     cfg = client.get("/api/config/pharmacy").json()["data"]
     assert {r["id"]: r["status"] for r in cfg["rules"]}["C1"] == "active"
 
 
-@pytest.mark.parametrize("module", ["pharmacy", "grocery", "food"])
+@pytest.mark.parametrize("module", ["pharmacy", "grocery", "cosmetics"])
 def test_full_run_each_module(client, seeded_db, module):
     r = client.post("/api/optimization/run", json={"module": module, "scenario_id": "S0"})
     assert r.status_code == 200, r.text
@@ -82,8 +82,8 @@ def test_malformed_inputs_return_typed_errors(client):
 
 
 def test_read_views(client):
-    for path in ("/api/dashboard?module=pharmacy", "/api/inventory?module=food", "/api/risks?module=grocery",
-                 "/api/forecast/metrics?module=pharmacy", "/api/warehouses?module=food", "/api/scenarios"):
+    for path in ("/api/dashboard?module=pharmacy", "/api/inventory?module=cosmetics", "/api/risks?module=grocery",
+                 "/api/forecast/metrics?module=pharmacy", "/api/warehouses?module=cosmetics", "/api/scenarios"):
         r = client.get(path)
         assert r.status_code == 200, (path, r.text)
     fm = client.get("/api/forecast/metrics?module=pharmacy").json()["data"]

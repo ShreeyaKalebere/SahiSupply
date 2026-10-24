@@ -12,7 +12,7 @@ One engine serves three industry modules defined in YAML:
 | Module | Destinations | Need source | Enforced rules |
 |---|---|---|---|
 | Grocery Retail | kirana stores, supermarkets | open orders (rationing) | G1 ≥ 3 days life on arrival; FEFO tie-break |
-| Food Distribution | distributors, restaurants | forecast | F1 ≥ 40% of shelf life on arrival; F2 chilled storage match |
+| Cosmetics Retail | beauty stores, salons, department stores | forecast | K1 ≥ 30% of shelf life on arrival; K2 cool storage for sensitive skincare; K3 FEFO tie-break |
 | Pharmaceuticals | pharmacies, clinics, hospitals | forecast | C1 ≥ 90 days on arrival; C2 critical shortage weight 10; C3 2-8 °C storage match; C4 80% equity floor (optional) |
 
 > **All data is synthetic** (seed 42). Thresholds are configurable design settings, not regulatory rules. No
@@ -114,15 +114,17 @@ cd backend && python -m scripts.benchmark
 
 ### Results recorded in this environment (2026-10-24)
 
+The PRD's Food Distribution module was replaced by **Cosmetics Retail** at the product owner's request; the PRD file itself is unchanged.
+
 | Suite | Result |
 |---|---|
 | Backend `pytest` (unit, optimizer, checker incl. 60 Hypothesis examples, explanations/insights, API integration against MongoDB, 10-seed harness) | **64 passed** |
-| Correctness gate `-m slow`: 100 seeds × S0-S4 × 3 modules = 1,500 runs | **0 checker violations** for optimizer and baseline; max solve 9.98 s (food, one instance), all OPTIMAL/FEASIBLE |
+| Correctness gate `-m slow`: 100 seeds × S0-S4 × 3 modules = 1,500 runs | **0 checker violations** for optimizer and baseline; max solve 1.65 s, all OPTIMAL/FEASIBLE (cosmetics re-run after it replaced Food Distribution) |
 | Stress test 10 warehouses × 48 outlets × 30 products | OPTIMAL in **1.06 s**, gap 0.04% |
 | Frontend Vitest + React Testing Library | **8 passed** |
 | `ruff check backend`, `tsc --noEmit`, `vite build` | clean |
-| Demo-size solve time (20 runs) | p50 **0.06 s**, p95 **0.11 s** (targets < 2 s / < 5 s) |
-| Forecast WAPE vs seasonal naive | −26.6% pharmacy, −25.5% grocery, −24.7% food (gradient boosting selected in all three; target ≥ 10%) |
+| Demo-size solve time (20 runs) | p50 **0.05 s**, p95 **0.08 s** (targets < 2 s / < 5 s) |
+| Forecast WAPE vs seasonal naive | −26.6% pharmacy, −25.5% grocery, −26.0% cosmetics (gradient boosting selected in all three; target ≥ 10%) |
 | North-star (≥ +5 pp fill under disruption in ≥ 2 of S1-S3, pattern on) | met in all three modules; **0/3 with the pattern off** in every module |
 
 Misses and caveats (from `validation/results.md`): in pharmacy S2 the optimizer's overall fill rate is
@@ -150,7 +152,7 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
 5. **What-if → Monsoon road closures**: before/after delivered %, what changed, and the stores hit hardest.
 6. **vs. Manual planning**: side-by-side cards, value in ₹ (sample prices), and what your rules prevent.
 7. **Rules & settings**: switch a rule off (e.g. "Fresh on arrival") and run again to see its effect.
-8. Switch to **Grocery** and **Food Distribution** and run a plan in each.
+8. Switch to **Grocery** and **Cosmetics** and run a plan in each.
 9. **Download plan**: pick list as CSV, or print view.
 10. **Past plans**: every plan is read back from MongoDB.
 

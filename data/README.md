@@ -23,10 +23,10 @@ mu(d,p,t) = scale_d * base_p * mix(d,p) * weekday(t) * trend_p(t) * promo(p,t) *
 demand    ~ NegativeBinomial(mean = mu, dispersion = 6)
 ```
 
-* weekday factors differ per industry (e.g. pharmacy low on Sundays, food high at weekends);
+* weekday factors differ per industry (e.g. pharmacy low on Sundays, cosmetics high at weekends);
 * 2-4 promotion windows per product (uplift 1.1-1.6 depending on the industry), known in advance;
 * an approximate 2026 festival calendar (Eid, Ganesh Chaturthi, Navratri, Dussehra, Diwali);
-* in grocery/food, outlets without a chiller sell only 15% of the normal chilled-product demand.
+* in grocery/cosmetics, outlets without cool storage sell only 15% of the normal chilled-product demand.
 
 Because `mu` is known, the forecast backtest reports a **noise floor**: the error a forecaster would have
 if it knew the true expected demand. This exists only because the data is synthetic.

@@ -47,7 +47,7 @@ def test_no_future_leakage(datasets):
 
 
 def test_model_selection_is_lowest_wape_and_noise_floor_reported(datasets):
-    fc = run_forecast(datasets["food"], "food")
+    fc = run_forecast(datasets["cosmetics"], "cosmetics")
     m = fc.backtest.metrics
     assert fc.selected == min(m, key=lambda k: m[k]["wape"])
     payload = fc.metrics_payload()

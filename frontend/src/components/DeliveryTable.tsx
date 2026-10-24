@@ -20,7 +20,7 @@ export function DeliveryTable({ rows, onOpen, whName, label = "Deliveries" }: {
           return (
             <tr key={`${r.outlet_id}|${r.product_id}`} className="clickable" tabIndex={0} onClick={() => onOpen(r)}
               onKeyDown={(e) => { if (e.key === "Enter") onOpen(r); }}>
-              <td><div className="font-medium text-slate-900">{r.outlet_name}</div><div className="text-xs capitalize text-slate-400">{r.outlet_type} · {r.region}</div></td>
+              <td><div className="font-medium text-slate-900">{r.outlet_name}</div><div className="text-xs capitalize text-slate-400">{r.outlet_type.replace(/_/g, " ")} · {r.region}</div></td>
               <td>{r.product_name}{r.criticality === "critical" && <Pill tone="red" className="ml-2">critical</Pill>}</td>
               <td className="num">{fmtInt(r.required)}</td>
               <td className="num font-semibold text-slate-900">{fmtInt(r.allocated)}</td>

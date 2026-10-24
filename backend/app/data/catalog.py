@@ -63,19 +63,19 @@ OUTLET_PROFILES = {
         ("supermarket", "Amravati Value Mart", ("chilled",), 0.8),
         ("kirana", "Latur Kirana Bhandar", ("chilled",), 0.4),
     ],
-    "food": [
-        ("distributor", "Mumbai Food Distributors", ("chilled",), 1.3),
-        ("restaurant", "Thane Spice Kitchen", ("chilled",), 0.7),
-        ("restaurant", "Navi Mumbai Dhaba", ("chilled",), 0.5),
-        ("restaurant", "Kalyan Thali House", (), 0.0),
-        ("distributor", "Pune Foodservice Co.", ("chilled",), 1.2),
-        ("restaurant", "Satara Misal Centre", (), 0.0),
-        ("restaurant", "Kolhapur Tambda Rassa", ("chilled",), 0.6),
-        ("restaurant", "Sangli Bhojnalay", ("chilled",), 0.4),
-        ("restaurant", "Chandrapur Highway Dhaba", ("chilled",), 0.35),
-        ("restaurant", "Gadchiroli Canteen", (), 0.0),
-        ("distributor", "Amravati Food Supply", ("chilled",), 0.9),
-        ("restaurant", "Latur Annapurna", ("chilled",), 0.4),
+    "cosmetics": [
+        ("department_store", "Andheri Glam Department Store", ("chilled",), 1.0),
+        ("beauty_store", "Thane Beauty Bar", ("chilled",), 0.8),
+        ("salon", "Vashi Glow Salon", (), 0.0),
+        ("beauty_store", "Kalyan Cosmetics Corner", ("chilled",), 0.5),
+        ("department_store", "Pune Style Mall Store", ("chilled",), 1.1),
+        ("salon", "Satara Bridal Salon", (), 0.0),
+        ("beauty_store", "Kolhapur Beauty Hub", ("chilled",), 0.6),
+        ("beauty_store", "Sangli Shringar Store", (), 0.0),
+        ("salon", "Chandrapur Unisex Salon", ("chilled",), 0.35),
+        ("beauty_store", "Gadchiroli Beauty Point", (), 0.0),
+        ("department_store", "Amravati City Mall Store", ("chilled",), 0.9),
+        ("salon", "Latur Glam Studio", ("chilled",), 0.4),
     ],
 }
 
@@ -116,22 +116,22 @@ PRODUCTS = {
         ("White bread 400g", "Bakery", "ambient", "standard", 5, 1.5, 30, 38, 14.0),
         ("Eggs (tray of 12)", "Poultry", "ambient", "standard", 21, 1.8, 66, 80, 8.0),
     ],
-    "food": [
-        ("Paneer block 1kg", "Dairy", "chilled", "standard", 12, 1.1, 320, 380, 6.0),
-        ("Fresh cream 1L", "Dairy", "chilled", "standard", 10, 1.1, 190, 230, 4.0),
-        ("Table butter 500g", "Dairy", "chilled", "standard", 120, 0.55, 250, 285, 5.0),
-        ("Processed cheese 1kg", "Dairy", "chilled", "standard", 180, 1.0, 420, 480, 3.0),
-        ("Frozen green peas 1kg", "Frozen", "chilled", "standard", 365, 1.2, 110, 140, 5.0),
-        ("Basmati rice 25kg", "Grains", "ambient", "standard", 365, 30.0, 1900, 2150, 1.6),
-        ("Refined oil 15L tin", "Edible oil", "ambient", "standard", 270, 16.0, 1950, 2200, 1.2),
-        ("Tomato puree 1kg", "Sauces", "ambient", "standard", 365, 1.0, 90, 115, 6.0),
-        ("Wheat flour 25kg", "Grains", "ambient", "standard", 120, 32.0, 950, 1080, 1.4),
-        ("Garam masala 500g", "Spices", "ambient", "standard", 365, 0.7, 260, 320, 2.0),
-        ("Fresh tomatoes 10kg crate", "Produce", "ambient", "standard", 10, 14.0, 300, 360, 2.5),
-        ("Onions 25kg sack", "Produce", "ambient", "standard", 30, 35.0, 650, 760, 1.5),
-        ("Potatoes 25kg sack", "Produce", "ambient", "standard", 45, 33.0, 550, 650, 1.6),
-        ("Dahi 5kg bucket", "Dairy", "chilled", "standard", 15, 5.5, 280, 340, 2.2),
-        ("Pav bread (pack of 12)", "Bakery", "ambient", "standard", 6, 2.0, 45, 60, 8.0),
+    "cosmetics": [
+        ("Daily moisturiser 50ml", "Skincare", "ambient", "standard", 730, 0.08, 180, 299, 9.0),
+        ("Sunscreen SPF 50 50ml", "Skincare", "ambient", "standard", 730, 0.08, 220, 399, 8.0),
+        ("Neem face wash 100ml", "Skincare", "ambient", "standard", 730, 0.12, 90, 160, 12.0),
+        ("Vitamin C serum 30ml", "Skincare", "chilled", "standard", 365, 0.05, 350, 649, 4.0),
+        ("Retinol night cream 50ml", "Skincare", "chilled", "standard", 365, 0.08, 420, 799, 3.0),
+        ("Fresh clay face mask 100g", "Skincare", "chilled", "standard", 180, 0.12, 160, 299, 3.0),
+        ("Matte lipstick", "Makeup", "ambient", "standard", 1095, 0.02, 140, 299, 10.0),
+        ("Kajal pencil", "Makeup", "ambient", "standard", 1095, 0.01, 60, 140, 14.0),
+        ("Liquid foundation 30ml", "Makeup", "ambient", "standard", 730, 0.05, 260, 499, 5.0),
+        ("Nail polish 9ml", "Makeup", "ambient", "standard", 1095, 0.02, 50, 120, 7.0),
+        ("Herbal shampoo 200ml", "Haircare", "ambient", "standard", 730, 0.22, 110, 199, 11.0),
+        ("Conditioner 200ml", "Haircare", "ambient", "standard", 730, 0.22, 120, 220, 6.0),
+        ("Coconut hair oil 200ml", "Haircare", "ambient", "standard", 545, 0.22, 70, 125, 10.0),
+        ("Body lotion 400ml", "Bodycare", "ambient", "standard", 730, 0.42, 170, 299, 6.0),
+        ("Eau de parfum 50ml", "Fragrance", "ambient", "standard", 1095, 0.12, 650, 1299, 2.0),
     ],
 }
 
@@ -144,13 +144,13 @@ FESTIVALS = [
     ("Diwali", "2026-11-06", "2026-11-08"),
 ]
 
-FESTIVAL_UPLIFT = {"pharmacy": (1.0, 1.05), "grocery": (1.35, 1.8), "food": (1.3, 1.7)}
-PROMO_UPLIFT = {"pharmacy": (1.1, 1.2), "grocery": (1.3, 1.6), "food": (1.2, 1.45)}
+FESTIVAL_UPLIFT = {"pharmacy": (1.0, 1.05), "grocery": (1.35, 1.8), "cosmetics": (1.5, 2.0)}
+PROMO_UPLIFT = {"pharmacy": (1.1, 1.2), "grocery": (1.3, 1.6), "cosmetics": (1.3, 1.8)}
 WEEKDAY_FACTORS = {
     # Monday .. Sunday
     "pharmacy": [1.08, 1.02, 1.0, 1.0, 1.05, 0.95, 0.70],
     "grocery": [0.90, 0.88, 0.92, 0.98, 1.08, 1.25, 1.20],
-    "food": [0.85, 0.88, 0.92, 1.0, 1.12, 1.28, 1.25],
+    "cosmetics": [0.85, 0.85, 0.9, 0.95, 1.1, 1.35, 1.3],
 }
 
-MODULE_SEED_OFFSET = {"pharmacy": 0, "grocery": 1, "food": 2}
+MODULE_SEED_OFFSET = {"pharmacy": 0, "grocery": 1, "cosmetics": 3}
