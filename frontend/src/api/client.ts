@@ -1,0 +1,73 @@
+import type {
+  Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
+  ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
+} from "../types/api";
+
+const BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
+
+export class ApiError extends Error {
+  constructor(public status: number, public code: string, message: string, public details?: unknown) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<Envelope<T>> {
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new ApiError(0, "NETWORK", "Cannot reach the SahiSupply API. Is the backend running on port 8000?");
+  }
+  let body: unknown = null;
+  try {
+    body = await res.json();
+  } catch {
+    /* non-JSON error */
+  }
+  if (!res.ok) {
+    const err = (body as { error?: { code: string; message: string; details?: unknown } } | null)?.error;
+    throw new ApiError(res.status, err?.code ?? "HTTP_ERROR", err?.message ?? `Request failed (${res.status})`, err?.details);
+  }
+  return body as Envelope<T>;
+}
+
+export interface RunParams {
+  module: string;
+  scenario_id: ScenarioId;
+  rule_toggles?: Record<string, boolean>;
+  contested_pattern?: boolean;
+  include_insights?: boolean;
+}
+
+const q = (o: Record<string, string | boolean | undefined | null>) =>
+  new URLSearchParams(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => [k, String(v)])).toString();
+
+export const api = {
+  health: () => request<Health>("/api/health"),
+  modules: () => request<ModuleSummary[]>("/api/modules"),
+  config: (m: string) => request<ModuleConfigView>(`/api/config/${m}`),
+  scenarios: () => request<Scenario[]>("/api/scenarios"),
+  dashboard: (m: string, contested = true) => request<Dashboard>(`/api/dashboard?${q({ module: m, contested_pattern: contested })}`),
+  inventory: (m: string, scenario: string = "S0", contested = true) =>
+    request<{ planning_date: string; rows: InventoryRow[]; rules_enforced: string[] }>(
+      `/api/inventory?${q({ module: m, scenario_id: scenario, contested_pattern: contested })}`),
+  risks: (m: string, contested = true) => request<Risks>(`/api/risks?${q({ module: m, contested_pattern: contested })}`),
+  warehouses: (m: string) => request<Warehouse[]>(`/api/warehouses?module=${m}`),
+  outlets: (m: string) => request<Outlet[]>(`/api/outlets?module=${m}`),
+  forecast: (m: string, outlet?: string | null, product?: string | null) =>
+    request<ForecastChart>(`/api/forecast/metrics?${q({ module: m, outlet_id: outlet, product_id: product })}`),
+  trainForecast: (m: string) => request<ForecastMetrics>("/api/forecast/train", { method: "POST", body: JSON.stringify({ module: m, refresh: true }) }),
+  run: (p: RunParams) => request<Run>("/api/optimization/run", { method: "POST", body: JSON.stringify(p) }),
+  runScenario: (p: RunParams) =>
+    request<{ run: Run; diff: ScenarioDiff | null }>("/api/scenarios/run", { method: "POST", body: JSON.stringify(p) }),
+  getRun: (id: string) => request<Run>(`/api/optimization/${id}`),
+  history: (m?: string, limit = 50) => request<HistoryRow[]>(`/api/optimization/history?${q({ module: m, limit: String(limit) })}`),
+  override: (id: string, body: { batch_id: string; outlet_id: string; new_qty: number; reason: string; actor?: string }) =>
+    request<Run>(`/api/optimization/${id}/override`, { method: "POST", body: JSON.stringify(body) }),
+  evaluation: (m: string) => request<Evaluation>(`/api/evaluation?module=${m}`),
+  exportUrl: (id: string, plan: "optimizer" | "baseline" = "optimizer") => `${BASE}/api/optimization/${id}/export.csv?plan=${plan}`,
+};

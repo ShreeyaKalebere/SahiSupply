@@ -1,0 +1,22 @@
+industry: food
+display_name: Food Distribution
+description: Shelf-life-aware allocation to food distributors and restaurants (push network).
+destination_types: [distributor, restaurant]
+planning:
+  review_period_days: 7
+  need_source: forecast
+service_levels:
+  critical: 1.28
+  standard: 1.28   # 90%
+kpis: [fill_rate, freshness_on_arrival_pct, expiry_risk_units]
+rules:
+  - id: F1
+    template: min_life_on_arrival
+    params: { min_pct: 40 }
+    status: active
+    description: Block a batch if less than 40% of its total shelf life remains on arrival.
+  - id: F2
+    template: storage_match
+    params: { classes: ["chilled"] }
+    status: active
+    description: Chilled products only go to destinations with chilled storage.

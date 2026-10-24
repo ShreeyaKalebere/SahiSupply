@@ -1,0 +1,22 @@
+industry: grocery
+display_name: Grocery Retail
+description: Order rationing for kirana stores and supermarkets (pull network).
+destination_types: [kirana, supermarket]
+planning:
+  review_period_days: 7
+  need_source: orders
+service_levels:
+  critical: 1.28
+  standard: 1.28   # 90%
+kpis: [fill_rate, expiry_risk_units, cost_per_delivered_unit]
+rules:
+  - id: G1
+    template: min_life_on_arrival
+    params: { min_days: 3 }
+    status: active
+    description: Block a batch if fewer than 3 days of shelf life remain on arrival.
+  - id: G1-FEFO
+    template: fefo
+    params: { enabled: true }
+    status: active
+    description: Prefer earlier-expiring eligible batches as a bounded tie-break (never outweighs >1% of the smallest unit cost).

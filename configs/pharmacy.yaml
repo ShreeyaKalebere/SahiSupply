@@ -1,0 +1,34 @@
+industry: pharmacy
+display_name: Pharmaceutical Distribution
+description: Batch-level medicine allocation to pharmacies, clinics and hospitals (push network).
+destination_types: [pharmacy, clinic, hospital]
+planning:
+  review_period_days: 7
+  need_source: forecast
+service_levels:
+  # z-values for the safety-stock term, keyed by product criticality
+  critical: 2.05   # 98%
+  standard: 1.65   # 95%
+kpis: [critical_shortage_units, fill_rate, blocked_units_shipped, cost_per_delivered_unit]
+rules:
+  - id: C1
+    template: min_life_on_arrival
+    params: { min_days: 90 }
+    status: active
+    description: Block a batch if fewer than 90 days of shelf life remain when it reaches the destination.
+  - id: C2
+    template: shortage_weight
+    params: { weights: { critical: 10, standard: 1 } }
+    status: active
+    description: Critical-medicine shortages carry 10x the policy penalty of standard products.
+  - id: C3
+    template: storage_match
+    params: { classes: ["2-8C"] }
+    status: active
+    description: 2-8 °C products only go to destinations with a validated 2-8 °C fridge.
+  - id: C4
+    template: min_fill_floor
+    params: { floor_pct: 80, classes: [critical] }
+    status: active
+    default_on: false
+    description: Equity guardrail - every destination gets at least 80% of its critical-medicine need when supply allows.
