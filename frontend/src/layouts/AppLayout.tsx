@@ -1,5 +1,5 @@
 import {
-  Boxes, CalendarDays, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
+  Boxes, CalendarDays, Network, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
   Play, Settings2, Truck, TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
@@ -14,6 +14,7 @@ import { MODULE_LABEL, SCENARIO_TEXT } from "../utils/labels";
 const MAIN = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/planner", label: "Delivery plan", icon: Truck },
+  { to: "/network", label: "Network builder", icon: Network },
   { to: "/scenarios", label: "What-if", icon: CloudLightning },
   { to: "/insights", label: "Smart suggestions", icon: Lightbulb },
   { to: "/inventory", label: "Stock & expiry", icon: Boxes },
@@ -96,6 +97,18 @@ export function AppLayout() {
           <ErrorBox error={p.bootError} />
           <ErrorBox error={p.runError} />
           {p.run && <PlanStatusBanner run={p.run} />}
+          {p.run?.network && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-sm text-violet-800">
+              <span>
+                You're viewing <b>your custom network</b>: {p.run.network.summary.warehouses_kept.length} warehouses,{" "}
+                {p.run.network.summary.outlets_kept.length} stores, {p.run.network.summary.roads_closed.length + p.run.network.summary.roads_opened.length} road(s) changed.
+              </span>
+              <span className="flex gap-2">
+                <NavLink to="/network" className="btn-secondary py-1.5">Edit network</NavLink>
+                <button className="btn-secondary py-1.5" disabled={p.running} onClick={() => { p.setNetwork(null); void p.runPlan({ network: null }); }}>Back to full network</button>
+              </span>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

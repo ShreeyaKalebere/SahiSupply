@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api/client";
-import type { ModuleSummary, Run, Scenario, ScenarioDiff, ScenarioId } from "../types/api";
+import type { ModuleSummary, NetworkEdit, Run, Scenario, ScenarioDiff, ScenarioId } from "../types/api";
 
 interface PlannerState {
   modules: ModuleSummary[];
@@ -18,7 +18,10 @@ interface PlannerState {
   scenarioDiff: ScenarioDiff | null;
   running: boolean;
   runError: ApiError | null;
-  runPlan: (opts?: { scenario?: ScenarioId }) => Promise<Run | null>;
+  runPlan: (opts?: { scenario?: ScenarioId; network?: NetworkEdit | null }) => Promise<Run | null>;
+  network: NetworkEdit | null;
+  setNetwork: (n: NetworkEdit | null) => void;
+  fullRun: Run | null;
   bootError: ApiError | null;
   currentModule: ModuleSummary | undefined;
 }
@@ -48,6 +51,8 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
   const [contested, setContested] = useState(true);
   const [toggles, setToggles] = useState<Record<string, Record<string, boolean>>>({});
   const [runs, setRuns] = useState<Record<string, Run>>({});
+  const [fullRuns, setFullRuns] = useState<Record<string, Run>>({});
+  const [networks, setNetworks] = useState<Record<string, NetworkEdit | null>>({});
   const [diffs, setDiffs] = useState<Record<string, ScenarioDiff | null>>({});
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<ApiError | null>(null);
@@ -68,10 +73,12 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     api.history(module, 10)
       .then(async (h) => {
         // Prefer the latest normal-week plan so the dashboard opens on the regular situation.
-        const latest = h.data.find((r) => r.status === "VALID" && r.scenario_id === "S0") ?? h.data.find((r) => r.status === "VALID");
+        const latest = h.data.find((r) => r.status === "VALID" && r.scenario_id === "S0" && !r.network)
+          ?? h.data.find((r) => r.status === "VALID" && !r.network);
         if (!latest) return;
         const full = await api.getRun(latest.plan_id);
         setRuns((prev) => (prev[module] ? prev : { ...prev, [module]: full.data }));
+        setFullRuns((prev) => (prev[module] ? prev : { ...prev, [module]: full.data }));
       })
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,12 +100,16 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     });
   }, [module]);
 
-  const runPlan = useCallback(async (opts?: { scenario?: ScenarioId }) => {
+  const network = networks[module] ?? null;
+  const setNetwork = useCallback((n: NetworkEdit | null) => setNetworks((p) => ({ ...p, [module]: n })), [module]);
+
+  const runPlan = useCallback(async (opts?: { scenario?: ScenarioId; network?: NetworkEdit | null }) => {
     const sid = opts?.scenario ?? scenario;
+    const net = opts?.network !== undefined ? opts.network : network;
     setRunning(true);
     setRunError(null);
     try {
-      const params = { module, scenario_id: sid, rule_toggles: ruleToggles, contested_pattern: contested, include_insights: true };
+      const params = { module, scenario_id: sid, rule_toggles: ruleToggles, contested_pattern: contested, include_insights: true, network: net };
       let run: Run;
       if (sid === "S0") {
         run = (await api.run(params)).data;
@@ -109,6 +120,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
         setDiffs((p) => ({ ...p, [module]: r.diff }));
       }
       setRuns((p) => ({ ...p, [module]: run }));
+      if (!run.network) setFullRuns((p) => ({ ...p, [module]: run }));
       if (opts?.scenario) setScenario(sid);
       return run;
     } catch (e) {
@@ -117,7 +129,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     } finally {
       setRunning(false);
     }
-  }, [module, scenario, ruleToggles, contested]);
+  }, [module, scenario, ruleToggles, contested, network]);
 
   const setRun = useCallback((r: Run) => setRuns((p) => ({ ...p, [r.module]: r })), []);
 
@@ -125,8 +137,9 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     modules, scenarios, module, setModule, scenario, setScenario, contested, setContested,
     ruleToggles, setRuleToggle, run: runs[module] ?? null, setRun, scenarioDiff: diffs[module] ?? null,
     running, runError, runPlan, bootError, currentModule: modules.find((m) => m.industry === module),
+    network, setNetwork, fullRun: fullRuns[module] ?? null,
   }), [modules, scenarios, module, setModule, scenario, contested, ruleToggles, setRuleToggle, runs, setRun, diffs,
-    running, runError, runPlan, bootError]);
+    running, runError, runPlan, bootError, network, setNetwork, fullRuns]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

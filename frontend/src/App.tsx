@@ -9,6 +9,7 @@ import HistoryPage from "./pages/HistoryPage";
 import InsightsPage from "./pages/InsightsPage";
 import InventoryPage from "./pages/InventoryPage";
 import MapPage from "./pages/MapPage";
+import NetworkPage from "./pages/NetworkPage";
 import OverviewPage from "./pages/OverviewPage";
 import PlannerPage from "./pages/PlannerPage";
 import ScenariosPage from "./pages/ScenariosPage";
@@ -20,6 +21,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
           <Route path="planner" element={<PlannerPage />} />
+          <Route path="network" element={<NetworkPage />} />
           <Route path="comparison" element={<ComparisonPage />} />
           <Route path="scenarios" element={<ScenariosPage />} />
           <Route path="insights" element={<InsightsPage />} />

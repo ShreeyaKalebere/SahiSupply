@@ -13,12 +13,19 @@ class _Req(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class NetworkEditRequest(_Req):
+    warehouses: list[str] | None = Field(default=None, max_length=50)
+    outlets: list[str] | None = Field(default=None, max_length=500)
+    route_overrides: dict[str, bool] = Field(default_factory=dict, max_length=5000)
+
+
 class RunRequest(_Req):
     module: str = ModuleId
     scenario_id: ScenarioId = "S0"
     rule_toggles: dict[str, bool] = Field(default_factory=dict, max_length=20)
     contested_pattern: bool = True
     include_insights: bool = True
+    network: NetworkEditRequest | None = None
 
 
 class ForecastTrainRequest(_Req):

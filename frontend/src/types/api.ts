@@ -268,8 +268,29 @@ export interface ForecastMetrics {
   train_seconds?: number;
 }
 
+export interface NetworkEdit {
+  warehouses: string[] | null;
+  outlets: string[] | null;
+  route_overrides: Record<string, boolean>;
+}
+
+export interface NetworkSummary {
+  warehouses_kept: string[];
+  warehouses_removed: string[];
+  outlets_kept: string[];
+  outlets_removed: string[];
+  roads_closed: string[];
+  roads_opened: string[];
+}
+
+export interface Route {
+  route_id: string; warehouse_id: string; outlet_id: string; distance_km: number; lead_time_days: number;
+  cost_per_litre: number; capacity_l: number; open: boolean;
+}
+
 export interface Run {
   plan_id: string;
+  network?: { edit: NetworkEdit; summary: NetworkSummary } | null;
   created_at: string;
   module: string;
   module_name: string;
@@ -406,6 +427,7 @@ export interface HistoryRow {
   data_source: DataSource;
   version: number;
   persisted?: boolean;
+  network?: { summary?: NetworkSummary } | null;
   optimizer?: { kpis?: Partial<Kpis> | null; solver?: SolverInfo | null; check?: Partial<CheckResult> | null };
   baseline?: { kpis?: Partial<Kpis> };
   comparison?: { fill_rate_pp?: number };

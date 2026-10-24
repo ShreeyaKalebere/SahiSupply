@@ -152,6 +152,8 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
 5. **What-if → Monsoon road closures**: before/after delivered %, what changed, and the stores hit hardest.
 6. **vs. Manual planning**: side-by-side cards, value in ₹ (sample prices), and what your rules prevent.
 7. **Rules & settings**: switch a rule off (e.g. "Fresh on arrival") and run again to see its effect.
+7b. **Network builder**: switch warehouses and stores on/off and click roads in the grid to close or open them, then
+   *Run plan with this network* - e.g. open Nagpur → Chandrapur and watch that store go from 34% to 58% supplied.
 8. Switch to **Grocery** and **Cosmetics** and run a plan in each.
 9. **Download plan**: pick list as CSV, or print view.
 10. **Past plans**: every plan is read back from MongoDB.
@@ -169,6 +171,8 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
 * P0-09 value-of-one-more-unit insights (GLOP duals rank, SCIP re-solves measure, checker reproduces)
 * P0-10 planner workspace (11 views, plain-language UI, mobile bottom navigation) with real API data only
 * P0-11 CSV / print export in FEFO order; validated, logged overrides
+* Network builder: user-chosen warehouses/stores and per-road open/close, applied to the data before planning and
+  verified by the checker (`backend/app/scenarios/custom.py`)
 * P1-01 equity guardrail with cost of fairness · P1-02 disruption-regret score · P1-03 Leaflet map with list
   fallback · P1-05 F2/C3 storage rules and S4 cold-room failure
 * MongoDB persistence (runs, overrides, forecast metrics), labelled snapshot fallback, JSON logs, `/api/metrics`

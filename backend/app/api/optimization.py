@@ -9,6 +9,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.common import ApiError, metrics, ok, require_module
+from app.scenarios.custom import NetworkEdit
 from app.schemas.requests import OverrideRequest, RunRequest
 from app.services import run_store
 from app.services.overrides import OverrideRejected, apply_override
@@ -23,10 +24,18 @@ def public_run(run: dict) -> dict:
     return {k: v for k, v in run.items() if k not in HIDDEN}
 
 
+def _network(req: RunRequest) -> NetworkEdit | None:
+    if req.network is None:
+        return None
+    return NetworkEdit(warehouses=req.network.warehouses, outlets=req.network.outlets,
+                       route_overrides=req.network.route_overrides)
+
+
 def _execute(req: RunRequest) -> dict:
     require_module(req.module)
     run = run_plan(req.module, req.scenario_id, rule_toggles=req.rule_toggles,
-                   contested_pattern=req.contested_pattern, include_insights=req.include_insights)
+                   contested_pattern=req.contested_pattern, include_insights=req.include_insights,
+                   network=_network(req))
     metrics.inc("runs")
     metrics.inc({"VALID": "runs_valid", "INVALID": "runs_invalid", "SOLVER_FAILED": "solver_failures"}[run["status"]])
     if run["data_source"] == "snapshot":
@@ -133,7 +142,7 @@ def scenarios_run(req: RunRequest):
     diff = None
     if req.scenario_id != "S0" and run.get("optimizer"):
         s0 = run_plan(req.module, "S0", rule_toggles=req.rule_toggles, contested_pattern=req.contested_pattern,
-                      include_insights=False, include_regret=False)
+                      include_insights=False, include_regret=False, network=_network(req))
         if s0.get("optimizer"):
             a = {(r["outlet_id"], r["product_id"]): r for r in s0["allocation"]}
             b = {(r["outlet_id"], r["product_id"]): r for r in run["allocation"]}

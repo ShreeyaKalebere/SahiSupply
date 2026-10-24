@@ -26,6 +26,7 @@ from app.optimization.insights import compute_insights
 from app.optimization.model import SolveResult, solve
 from app.optimization.plan import Plan
 from app.optimization.regret import apply_plan, regret_report
+from app.scenarios.custom import NetworkEdit, NetworkEditError, apply_network
 from app.scenarios.definitions import SCENARIOS, apply_scenario
 from app.services import data_service
 from app.services.kpis import compare, compute_kpis, public_kpis
@@ -43,7 +44,8 @@ class PlanningInputError(ValueError):
 
 def prepare_problem(module: str, scenario_id: str, *, rule_toggles: dict[str, bool] | None = None,
                     contested_pattern: bool = True, dataset: dict | None = None, source: str | None = None,
-                    forecast: ForecastResult | None = None) -> tuple[PlanningProblem, dict]:
+                    forecast: ForecastResult | None = None,
+                    network: NetworkEdit | None = None) -> tuple[PlanningProblem, dict]:
     cfg = get_config(module)
     try:
         rules = resolve_rules(cfg, rule_toggles)
@@ -53,6 +55,12 @@ def prepare_problem(module: str, scenario_id: str, *, rule_toggles: dict[str, bo
         dataset, source = data_service.get_dataset(module, contested_pattern)
     fc = forecast or get_forecast(dataset, module)
     sc = apply_scenario(dataset, scenario_id)
+    network_summary = None
+    if network is not None and not network.is_empty():
+        try:
+            network_summary = apply_network(sc.dataset, network)
+        except NetworkEditError as exc:
+            raise PlanningInputError(str(exc)) from exc
     need = compute_need(sc.dataset, need_source=cfg.planning.need_source,
                         review_period_days=cfg.planning.review_period_days,
                         z_by_class=cfg.service_levels.model_dump(), forecast=fc,
@@ -60,7 +68,7 @@ def prepare_problem(module: str, scenario_id: str, *, rule_toggles: dict[str, bo
     problem = build_problem(sc.dataset, module=module, scenario_id=scenario_id, rules=rules,
                             review_period_days=cfg.planning.review_period_days, need_detail=need,
                             data_source=source or "mongodb")
-    return problem, {"scenario": sc, "forecast": fc, "config": cfg, "dataset": dataset}
+    return problem, {"scenario": sc, "forecast": fc, "config": cfg, "dataset": dataset, "network": network_summary}
 
 
 def problem_from_raw(raw: dict, need_detail: list[dict], rules_toggles_spec: dict, data_source: str) -> PlanningProblem:
@@ -141,7 +149,7 @@ _s0_lock = threading.Lock()
 
 def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bool] | None = None,
              contested_pattern: bool = True, include_insights: bool = True, include_regret: bool = True,
-             time_limit_s: float | None = None) -> dict:
+             time_limit_s: float | None = None, network: NetworkEdit | None = None) -> dict:
     t_all = time.perf_counter()
     timings: dict[str, float] = {}
     if scenario_id not in SCENARIOS:
@@ -149,7 +157,8 @@ def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bo
     time_limit_s = time_limit_s or get_settings().solver_time_limit_s
 
     t = time.perf_counter()
-    problem, ctx = prepare_problem(module, scenario_id, rule_toggles=rule_toggles, contested_pattern=contested_pattern)
+    problem, ctx = prepare_problem(module, scenario_id, rule_toggles=rule_toggles, contested_pattern=contested_pattern,
+                                   network=network)
     cfg: ModuleConfig = ctx["config"]
     fc: ForecastResult = ctx["forecast"]
     timings["forecast_and_need"] = time.perf_counter() - t
@@ -226,12 +235,14 @@ def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bo
     regret = None
     if include_regret and scenario_id != "S0" and opt_res.plan:
         t = time.perf_counter()
-        key = f"{module}|{contested_pattern}|{sorted((rule_toggles or {}).items())}|{ctx['dataset']['meta'].get('dataset_sha256')}"
+        key = (f"{module}|{contested_pattern}|{sorted((rule_toggles or {}).items())}|"
+               f"{ctx['dataset']['meta'].get('dataset_sha256')}|{network.as_dict() if network else None}")
         with _s0_lock:
             s0_plan = _s0_cache.get(key)
         if s0_plan is None:
             s0_problem, _ = prepare_problem(module, "S0", rule_toggles=rule_toggles, contested_pattern=contested_pattern,
-                                            dataset=ctx["dataset"], source=problem.data_source, forecast=fc)
+                                            dataset=ctx["dataset"], source=problem.data_source, forecast=fc,
+                                            network=network)
             s0 = solve(s0_problem, time_limit_s=time_limit_s)
             s0_plan = s0.plan
             with _s0_lock:
@@ -258,6 +269,8 @@ def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bo
         "scenario_id": scenario_id,
         "scenario": {"id": scenario_id, **SCENARIOS[scenario_id], "assumptions": sc.assumptions, "changes": sc.changes},
         "contested_pattern": contested_pattern,
+        "network": ({"edit": network.as_dict(), "summary": ctx["network"]}
+                    if network is not None and not network.is_empty() else None),
         "rule_toggles": rule_toggles or {},
         "rules_enforced": list(problem.rules.enabled_ids),
         "rules_disabled": list(problem.rules.disabled_ids),

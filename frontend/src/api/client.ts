@@ -1,4 +1,5 @@
 import type {
+  NetworkEdit, Route,
   Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
   ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
 } from "../types/api";
@@ -40,6 +41,7 @@ export interface RunParams {
   rule_toggles?: Record<string, boolean>;
   contested_pattern?: boolean;
   include_insights?: boolean;
+  network?: NetworkEdit | null;
 }
 
 const q = (o: Record<string, string | boolean | undefined | null>) =>
@@ -58,6 +60,7 @@ export const api = {
   risks: (m: string, contested = true) => request<Risks>(`/api/risks?${q({ module: m, contested_pattern: contested })}`),
   warehouses: (m: string) => request<Warehouse[]>(`/api/warehouses?module=${m}`),
   outlets: (m: string) => request<Outlet[]>(`/api/outlets?module=${m}`),
+  routes: (m: string, contested = true) => request<Route[]>(`/api/routes?${q({ module: m, contested_pattern: contested })}`),
   forecast: (m: string, outlet?: string | null, product?: string | null) =>
     request<ForecastChart>(`/api/forecast/metrics?${q({ module: m, outlet_id: outlet, product_id: product })}`),
   trainForecast: (m: string) => request<ForecastMetrics>("/api/forecast/train", { method: "POST", body: JSON.stringify({ module: m, refresh: true }) }),

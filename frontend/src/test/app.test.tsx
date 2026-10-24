@@ -19,7 +19,7 @@ const scenarios = [
 
 const mocks = vi.hoisted(() => ({
   modules: vi.fn(), scenarios: vi.fn(), history: vi.fn(), getRun: vi.fn(), run: vi.fn(), runScenario: vi.fn(),
-  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(),
+  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(), routes: vi.fn(),
 }));
 
 vi.mock("../api/client", async (orig) => {
@@ -44,7 +44,14 @@ beforeEach(() => {
   mocks.dashboard.mockImplementation(() => new Promise(() => undefined)); // stays loading
   mocks.risks.mockImplementation(() => new Promise(() => undefined));
   mocks.warehouses.mockImplementation(() => env([{ warehouse_id: "W1", name: "Bhiwandi DC" }, { warehouse_id: "W4", name: "Aurangabad DC" }]));
-  mocks.outlets.mockImplementation(() => env([]));
+  mocks.outlets.mockImplementation(() => env([{ outlet_id: "D1", name: "Lifeline Hospital", city: "Mumbai", lat: 19, lon: 72.8 },
+    { outlet_id: "D9", name: "Chandrapur Rural Clinic", city: "Chandrapur", lat: 19.9, lon: 79.3 }]));
+  mocks.routes.mockImplementation(() => env([
+    { route_id: "W1-D1", warehouse_id: "W1", outlet_id: "D1", distance_km: 40, lead_time_days: 1, cost_per_litre: 1, capacity_l: 50, open: true },
+    { route_id: "W1-D9", warehouse_id: "W1", outlet_id: "D9", distance_km: 900, lead_time_days: 3, cost_per_litre: 6, capacity_l: 50, open: false },
+    { route_id: "W4-D1", warehouse_id: "W4", outlet_id: "D1", distance_km: 300, lead_time_days: 1, cost_per_litre: 2, capacity_l: 50, open: true },
+    { route_id: "W4-D9", warehouse_id: "W4", outlet_id: "D9", distance_km: 500, lead_time_days: 2, cost_per_litre: 3, capacity_l: 50, open: true },
+  ]));
   mocks.exportUrl.mockImplementation((id: string, plan: string) => `/api/optimization/${id}/export.csv?plan=${plan}`);
 });
 
@@ -127,5 +134,20 @@ describe("SahiSupply workspace", () => {
     await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
     expect(await screen.findByText(/Offline copy/)).toBeInTheDocument();
     expect(screen.getByText("Not saved")).toBeInTheDocument();
+  });
+
+  it("network builder: closing a road and removing a warehouse are sent with the run", async () => {
+    mocks.run.mockImplementation(() => env(makeRun()));
+    renderAt("/network");
+    expect(await screen.findByText("1. Warehouses (2 of 2)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Road W1 to D9: closed" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Road W4 to D9: open" }));
+    expect(screen.getByRole("button", { name: "Road W4 to D9: closed" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /W1 · Bhiwandi DC/ }));
+    expect(screen.getByText("1. Warehouses (1 of 2)")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Run plan with this network/ }));
+    await waitFor(() => expect(mocks.run).toHaveBeenCalledWith(expect.objectContaining({
+      network: { warehouses: ["W4"], outlets: null, route_overrides: { "W4-D9": false } },
+    })));
   });
 });
