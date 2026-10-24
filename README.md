@@ -185,6 +185,15 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
   `frontend/public/models/delivery_truck.glb` with three.js (16 headings, loaded on demand).
   **Model credit:** "Delivery Truck" by [Jasmin Daniel](https://sketchfab.com/jasmin.daniel),
   [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/) - also shown in the map attribution
+* **Warehouse popup + interactive 3D warehouse** (Map page): click a warehouse marker for its stock, simulated
+  capacity and utilisation, stockout risks, expiring/blocked batches and products
+  (`GET /api/warehouses/{id}/details`). **View 3D Warehouse** opens a three.js scene (lazy-loaded) with an
+  industry-specific interior - Grocery pallet racking, Cosmetics beauty shelving, Pharmacy GDP shelving with a
+  2-8 °C cold room - built from that warehouse's real batches: one bay per batch slot, status tags, a quarantine
+  cage for blocked batches, loading dock with the GLB truck, and an animated forklift. Orbit/zoom/pan, zone camera
+  presets, and click a shelf (or a product in the list) for batch, quantity, expiry and eligibility. Racks, pallets
+  and cartons are instanced (about a dozen draw calls). A 2D plan is used when WebGL is unavailable. Rack/bin
+  positions and storage capacity are simulated and labelled; quantities, batches and expiry come from MongoDB.
 * P1-01 equity guardrail with cost of fairness · P1-02 disruption-regret score · P1-03 Leaflet map with list
   fallback · P1-05 F2/C3 storage rules and S4 cold-room failure
 * MongoDB persistence (runs, overrides, forecast metrics), labelled snapshot fallback, JSON logs, `/api/metrics`

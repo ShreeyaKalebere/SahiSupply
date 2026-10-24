@@ -481,3 +481,34 @@ export interface LiveWeather {
 export interface ChatTurn { role: "user" | "assistant"; content: string }
 
 export interface ChatReply { reply: string; engine: "claude" | "built-in"; suggestions: string[]; plan_id: string | null }
+
+export interface WarehouseBatch {
+  batch_id: string; product_id: string; product_name: string; category: string; storage_class: string;
+  criticality: string; quantity: number; volume_l: number; expiry_date: string; days_to_expiry: number;
+  remaining_life_pct: number; eligible_outlets: number; total_outlets: number; block_reasons: Record<string, number>;
+  status: "ok" | "expiring" | "blocked";
+}
+
+export interface WarehouseProduct {
+  product_id: string; name: string; category: string; storage_class: string; criticality: string;
+  units: number; volume_l: number; batches: number; nearest_expiry: string;
+  status: "ok" | "expiring" | "blocked" | "low"; shipped_this_week: number | null; units_after_plan: number | null;
+}
+
+export interface WarehouseDetails {
+  warehouse: { warehouse_id: string; name: string; city: string; region: string; lat: number; lon: number;
+    status: string; cold_storage: boolean; outbound_capacity_l: number };
+  industry: { module: string; name: string };
+  operator: string;
+  metrics: { total_units: number; total_volume_l: number; cold_volume_l: number; ambient_volume_l: number;
+    storage_capacity_l: number; storage_capacity_simulated: boolean; utilization: number | null;
+    batches: number; products: number; expiring_batches: number };
+  products: WarehouseProduct[];
+  batches: WarehouseBatch[];
+  stockout_risks: { product_id: string; name: string; units_left: number | null; reason: string }[];
+  expiring_batches: WarehouseBatch[];
+  plan_id: string | null;
+  planning_date: string;
+  data_source: DataSource;
+  data_notes: { from_database: string; simulated: string[] };
+}

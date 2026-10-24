@@ -19,7 +19,7 @@ const scenarios = [
 
 const mocks = vi.hoisted(() => ({
   modules: vi.fn(), scenarios: vi.fn(), history: vi.fn(), getRun: vi.fn(), run: vi.fn(), runScenario: vi.fn(),
-  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(), routes: vi.fn(), liveWeather: vi.fn(), chat: vi.fn(), assistantStatus: vi.fn(),
+  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(), routes: vi.fn(), liveWeather: vi.fn(), chat: vi.fn(), assistantStatus: vi.fn(), warehouseDetails: vi.fn(),
 }));
 
 vi.mock("../api/client", async (orig) => {
@@ -62,6 +62,19 @@ beforeEach(() => {
     source: "Open-Meteo forecast API (live)", source_url: "https://open-meteo.com/", fetched_at: "2026-10-24T10:00:00Z",
     forecast_days: 7, threshold_mm: 64.5, imd_heavy_rain_mm: 64.5, heavy_sites: [], roads_to_close: [], note: "Only the weather is live.",
     sites: [{ id: "W1", kind: "warehouse", name: "Bhiwandi DC", city: "Bhiwandi", lat: 19.3, lon: 73, daily: [], max_mm: 4.5, heavy: false }],
+  }));
+  mocks.warehouseDetails.mockImplementation(() => env({
+    warehouse: { warehouse_id: "W1", name: "Bhiwandi DC", city: "Bhiwandi", region: "Mumbai Metro", lat: 19.3, lon: 73.06, status: "operational", cold_storage: true, outbound_capacity_l: 100 },
+    industry: { module: "pharmacy", name: "Pharmaceutical Distribution" }, operator: "SahiSupply sample distribution network (synthetic, not a real company)",
+    metrics: { total_units: 1200, total_volume_l: 80, cold_volume_l: 10, ambient_volume_l: 70, storage_capacity_l: 160, storage_capacity_simulated: true, utilization: 0.5, batches: 2, products: 1, expiring_batches: 1 },
+    products: [{ product_id: "P01", name: "Insulin Glargine", category: "Antidiabetic", storage_class: "2-8C", criticality: "critical", units: 1200, volume_l: 80, batches: 2, nearest_expiry: "2027-01-01", status: "expiring", shipped_this_week: null, units_after_plan: null }],
+    batches: [
+      { batch_id: "B001", product_id: "P01", product_name: "Insulin Glargine", category: "Antidiabetic", storage_class: "2-8C", criticality: "critical", quantity: 1000, volume_l: 60, expiry_date: "2027-06-01", days_to_expiry: 220, remaining_life_pct: 60, eligible_outlets: 12, total_outlets: 12, block_reasons: {}, status: "ok" },
+      { batch_id: "B002", product_id: "P01", product_name: "Insulin Glargine", category: "Antidiabetic", storage_class: "2-8C", criticality: "critical", quantity: 200, volume_l: 20, expiry_date: "2026-11-30", days_to_expiry: 35, remaining_life_pct: 6, eligible_outlets: 0, total_outlets: 12, block_reasons: { "MIN_LIFE (C1)": 12 }, status: "blocked" },
+    ],
+    stockout_risks: [{ product_id: "P01", name: "Insulin Glargine", units_left: 5, reason: "Only 5 of 1200 units left after this week's plan" }],
+    expiring_batches: [], plan_id: null, planning_date: "2026-10-26", data_source: "mongodb",
+    data_notes: { from_database: "Stock comes from the database.", simulated: ["Storage capacity"] },
   }));
   mocks.assistantStatus.mockImplementation(() => env({ engine: "built-in", suggestions: ["How does SahiSupply work?"] }));
   mocks.chat.mockImplementation(() => env({ reply: "Chandrapur Rural Clinic gets 73% of what it needs.", engine: "built-in", suggestions: [], plan_id: null }));
@@ -193,5 +206,31 @@ describe("SahiSupply workspace", () => {
     expect(await screen.findByText(/Live weather \(real forecast\)/)).toBeInTheDocument();
     expect(await screen.findByText(/all roads stay open/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open-Meteo" })).toHaveAttribute("href", "https://open-meteo.com/");
+  });
+
+  it("warehouse marker opens the popup with database data, then a 3D warehouse (2D plan without WebGL)", async () => {
+    mocks.run.mockImplementation(() => env(makeRun()));
+    const { container } = renderAt("/map");
+    await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
+    await waitFor(() => expect(container.querySelector("[data-testid=leaflet]")).toBeTruthy());
+    // open the popup the way a marker click does
+    const { WarehousePopup } = await import("../components/warehouse/WarehousePopup");
+    const onOpen3D = vi.fn();
+    render(<WarehousePopup module="pharmacy" warehouseId="W1" contested onClose={() => undefined} onOpen3D={onOpen3D} />);
+    const pop = await screen.findByRole("dialog", { name: "Warehouse details" });
+    expect(await within(pop).findByText("Bhiwandi DC")).toBeInTheDocument();
+    expect(pop).toHaveTextContent("(simulated)");
+    expect(pop).toHaveTextContent("Only 5 of 1200 units left");
+    await userEvent.click(within(pop).getByRole("button", { name: /View 3D Warehouse/ }));
+    expect(onOpen3D).toHaveBeenCalledTimes(1);
+
+    const { default: Warehouse3DModal } = await import("../components/warehouse/Warehouse3DModal");
+    render(<Warehouse3DModal details={onOpen3D.mock.calls[0][0]} onClose={() => undefined} />);
+    const modal = await screen.findByRole("dialog", { name: "3D warehouse: Bhiwandi DC" });
+    expect(modal).toHaveTextContent("2D plan (3D is not available on this device)");
+    await userEvent.click(within(modal).getAllByRole("button", { name: /^Bay C1-01-1/ })[0]);
+    expect(modal).toHaveTextContent("B001");
+    expect(modal).toHaveTextContent("1,000 units");
+    expect(within(modal).getByRole("button", { name: /^Bay Q-01/ })).toBeInTheDocument(); // blocked batch in quarantine
   });
 });

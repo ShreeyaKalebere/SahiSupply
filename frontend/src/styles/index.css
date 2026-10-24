@@ -47,3 +47,6 @@
 @media (prefers-reduced-motion: reduce) {
   .hub-pulse { animation: none; }
 }
+
+/* Clickable warehouse markers on the map open the warehouse popup. */
+.warehouse-marker { cursor: pointer; }

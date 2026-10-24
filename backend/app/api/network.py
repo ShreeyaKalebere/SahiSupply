@@ -10,6 +10,7 @@ from app.forecasting.service import get_forecast
 from app.schemas.requests import ForecastPredictRequest, ForecastTrainRequest
 from app.services import data_service, views
 from app.services.live_weather import IMD_HEAVY_RAIN_MM, LiveDataUnavailable, weather_closures
+from app.services.warehouse_details import WarehouseNotFound, warehouse_details
 
 router = APIRouter(prefix="/api", tags=["network"])
 ModuleQ = Query(..., pattern=r"^[a-z][a-z0-9_]{1,30}$")
@@ -31,6 +32,18 @@ def _entities(module: str, key: str, contested_pattern: bool = True):
 @router.get("/warehouses")
 def warehouses(module: str = ModuleQ):
     return _entities(module, "warehouses")
+
+
+@router.get("/warehouses/{warehouse_id}/details")
+def warehouse_detail(warehouse_id: str, module: str = ModuleQ, contested_pattern: bool = True,
+                     plan_id: str | None = Query(None, pattern=r"^PLN-[A-Z0-9]{6,20}$")):
+    """Popup and 3D-warehouse data: stock, batches, expiry, risks; simulated fields are labelled."""
+    require_module(module)
+    try:
+        data = warehouse_details(module, warehouse_id, contested_pattern=contested_pattern, plan_id=plan_id)
+    except WarehouseNotFound:
+        raise ApiError(404, "UNKNOWN_WAREHOUSE", f"Unknown warehouse '{warehouse_id}' for {module}") from None
+    return ok(data, data_source=data["data_source"])
 
 
 @router.get("/outlets")

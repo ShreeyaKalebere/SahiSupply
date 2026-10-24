@@ -1,5 +1,5 @@
 import type {
-  ChatReply, ChatTurn, LiveWeather, NetworkEdit, Route,
+  ChatReply, ChatTurn, LiveWeather, NetworkEdit, Route, WarehouseDetails,
   Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
   ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
 } from "../types/api";
@@ -60,6 +60,8 @@ export const api = {
   risks: (m: string, contested = true) => request<Risks>(`/api/risks?${q({ module: m, contested_pattern: contested })}`),
   warehouses: (m: string) => request<Warehouse[]>(`/api/warehouses?module=${m}`),
   outlets: (m: string) => request<Outlet[]>(`/api/outlets?module=${m}`),
+  warehouseDetails: (m: string, id: string, contested = true, planId?: string | null) =>
+    request<WarehouseDetails>(`/api/warehouses/${encodeURIComponent(id)}/details?${q({ module: m, contested_pattern: contested, plan_id: planId })}`),
   routes: (m: string, contested = true) => request<Route[]>(`/api/routes?${q({ module: m, contested_pattern: contested })}`),
   forecast: (m: string, outlet?: string | null, product?: string | null) =>
     request<ForecastChart>(`/api/forecast/metrics?${q({ module: m, outlet_id: outlet, product_id: product })}`),

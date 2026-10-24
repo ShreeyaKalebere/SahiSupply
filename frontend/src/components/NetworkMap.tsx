@@ -104,9 +104,10 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
  * with a faint straight "shadow" underneath for depth; small 3D trucks drive along them; sending
  * warehouses pulse; closed roads (not connected) are red dotted lines.
  */
-export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutlet, closedWarehouses = [], rainSites = [], height = 520 }: {
+export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutlet, closedWarehouses = [], rainSites = [], height = 520, onWarehouseClick }: {
   warehouses: Warehouse[]; outlets: Outlet[]; flows: Flow[]; closedRoads: Route[];
   fillByOutlet: Record<string, number | undefined>; closedWarehouses?: string[]; rainSites?: string[]; height?: number;
+  onWarehouseClick?: (warehouseId: string) => void;
 }) {
   const [tileError, setTileError] = useState(false);
   const pos = (id: string): LatLng | null => {
@@ -175,7 +176,8 @@ export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutl
             const closed = closedWarehouses.includes(w.warehouse_id);
             return (
               <CircleMarker key={w.warehouse_id} center={[w.lat, w.lon]} radius={11}
-                pathOptions={{ color: rain.has(w.warehouse_id) ? "#0ea5e9" : "#0f172a", weight: 3, fillColor: closed ? "#e11d48" : "#0f172a", fillOpacity: 1 }}>
+                eventHandlers={onWarehouseClick ? { click: () => onWarehouseClick(w.warehouse_id) } : undefined}
+                pathOptions={{ color: rain.has(w.warehouse_id) ? "#0ea5e9" : "#0f172a", weight: 3, fillColor: closed ? "#e11d48" : "#0f172a", fillOpacity: 1, className: onWarehouseClick ? "warehouse-marker" : undefined }}>
                 <LTooltip permanent direction="right" offset={[10, 0]}>{w.warehouse_id}{closed ? " (closed)" : ""}</LTooltip>
               </CircleMarker>
             );
