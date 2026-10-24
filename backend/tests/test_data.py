@@ -3,14 +3,14 @@ from app.data.generator import SYNTHETIC_LABEL, dataset_sha256, generate_dataset
 
 def test_counts_match_prd(datasets):
     for m, d in datasets.items():
-        assert len(d["warehouses"]) == 4
-        assert len(d["outlets"]) == 8
+        assert len(d["warehouses"]) == 5
+        assert len(d["outlets"]) == 12
         assert len(d["products"]) == 15
-        assert len(d["routes"]) == 32
-        assert 90 <= len(d["batches"]) <= 160, len(d["batches"])
-        assert len(d["demand_history"]) == 8 * 15 * 180 == 21600
-        assert len({o["region"] for o in d["outlets"]}) >= 3
-        assert len(d["open_orders"]) == (120 if m == "grocery" else 0)
+        assert len(d["routes"]) == 60
+        assert 120 <= len(d["batches"]) <= 150, len(d["batches"])
+        assert len(d["demand_history"]) == 12 * 15 * 180 == 32400
+        assert len({o["region"] for o in d["outlets"]}) == 3
+        assert len(d["open_orders"]) == (180 if m == "grocery" else 0)
 
 
 def test_pharmacy_has_5_critical_and_4_cold_products(datasets):
@@ -34,7 +34,7 @@ def test_references_are_valid(datasets):
         assert all(r["warehouse_id"] in wids and r["outlet_id"] in oids for r in d["routes"])
         assert {(r["warehouse_id"], r["outlet_id"]) for r in d["routes"]} == {(w, o) for w in wids for o in oids}
         assert all(h["qty"] >= 0 for h in d["demand_history"])
-        # each product at 3 of 4 warehouses
+        # each product at 3 of 5 warehouses
         for p in pids:
             assert len({b["warehouse_id"] for b in d["batches"] if b["product_id"] == p}) == 3
 
@@ -51,8 +51,7 @@ def test_contested_pattern_only_changes_routes():
     assert all(r["open"] for r in off["routes"])
     closed = [r for r in on["routes"] if not r["open"]]
     remote = {o["outlet_id"] for o in on["outlets"] if o["remote"]}
-    hub = on["warehouses"][0]["warehouse_id"]
-    assert closed and all(r["outlet_id"] in remote and r["warehouse_id"] != hub for r in closed)
+    assert closed and all(r["outlet_id"] in remote and r["warehouse_id"] != "W2" for r in closed)
 
 
 def test_data_is_labelled_synthetic(datasets):

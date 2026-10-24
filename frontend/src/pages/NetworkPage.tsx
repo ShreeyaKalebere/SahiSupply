@@ -9,7 +9,7 @@ import { usePlanner } from "../hooks/usePlanner";
 import type { NetworkEdit, Route, Run } from "../types/api";
 import { cx, fmtInt, fmtPct, fmtRs } from "../utils/format";
 
-const byNum = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+const byNum = (a: string, b: string) => Number(a.slice(1)) - Number(b.slice(1));
 
 export default function NetworkPage() {
   const p = usePlanner();

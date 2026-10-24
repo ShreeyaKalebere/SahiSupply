@@ -8,7 +8,6 @@ A reason is only claimed when the computed plan establishes it.
 """
 from __future__ import annotations
 
-from app.data.catalog import id_sort_key
 from app.inventory.eligibility import Eligibility, evaluate_pair
 from app.inventory.problem import PlanningProblem
 from app.optimization.plan import Plan
@@ -71,7 +70,7 @@ def explain_plan(problem: PlanningProblem, elig: Eligibility, plan: Plan) -> lis
         holders.setdefault(b["product_id"], {}).setdefault(b["warehouse_id"], []).append(b)
 
     out = []
-    for (d, pid), q in sorted(problem.need.items(), key=lambda kv: (id_sort_key(kv[0][0]), kv[0][1])):
+    for (d, pid), q in sorted(problem.need.items(), key=lambda kv: (int(kv[0][0][1:]), kv[0][1])):
         if q <= 0:
             continue
         o = problem.outlets[d]
@@ -118,7 +117,7 @@ def explain_plan(problem: PlanningProblem, elig: Eligibility, plan: Plan) -> lis
             })
 
         alternatives = []
-        for w in sorted(alt_evals, key=id_sort_key):
+        for w in sorted(alt_evals, key=lambda w: int(w[1:])):
             if w in chosen_w:
                 continue
             evs = alt_evals[w]

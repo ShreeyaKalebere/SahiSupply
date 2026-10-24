@@ -19,7 +19,6 @@ from dataclasses import dataclass, field
 
 from ortools.linear_solver import pywraplp
 
-from app.data.catalog import id_sort_key
 from app.inventory.eligibility import Eligibility, build_eligibility, days_until
 from app.inventory.problem import PlanningProblem
 from app.optimization.plan import Plan, make_line, sort_lines
@@ -81,7 +80,7 @@ def solve(problem: PlanningProblem, elig: Eligibility | None = None, *, relax: b
     solver.SetTimeLimit(int(time_limit_s * 1000))
     inf = solver.infinity()
 
-    pairs = sorted(elig.eligible_pairs(), key=lambda e: (e.batch_id, id_sort_key(e.outlet_id)))
+    pairs = sorted(elig.eligible_pairs(), key=lambda e: (e.batch_id, int(e.outlet_id[1:])))
     pen = penalty_settings(problem, elig)
     pi = pen["pi"]
 

@@ -28,7 +28,7 @@ def test_backtest_uses_4_folds_of_14_days_over_days_125_to_180(datasets):
     sd = build_series(datasets["grocery"])
     bt = rolling_backtest(sd, models=("seasonal_naive", "moving_average_28"))
     assert bt.origins == [124, 138, 152, 166]          # 0-indexed day 124 = day 125 (1-indexed)
-    assert bt.actual.shape == (len(sd.keys), 56)
+    assert bt.actual.shape == (180, 56)
 
 
 def test_no_future_leakage(datasets):
@@ -54,4 +54,4 @@ def test_model_selection_is_lowest_wape_and_noise_floor_reported(datasets):
     assert payload["noise_floor"] is not None
     assert payload["noise_floor"]["wape"] <= min(v["wape"] for v in m.values()) + 1e-9
     assert (fc.sigma >= 1.0).all()
-    assert fc.forecast.shape == (len(fc.series.keys), 14) and (fc.forecast >= 0).all()
+    assert fc.forecast.shape == (180, 14) and (fc.forecast >= 0).all()

@@ -9,7 +9,6 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.common import ApiError, metrics, ok, require_module
-from app.data.catalog import id_sort_key
 from app.scenarios.custom import NetworkEdit
 from app.schemas.requests import OverrideRequest, RunRequest
 from app.services import run_store
@@ -127,7 +126,7 @@ def optimization_export(plan_id: str, plan: str = Query("optimizer", pattern="^(
                 "outlet_id", "outlet_name", "quantity", "lead_time_days", "life_on_arrival_days", "unit_cost_rs",
                 "line_cost_rs"])
     for ln in sorted(section["lines"], key=lambda x: (x["warehouse_id"], x["expiry_date"], x["batch_id"],
-                                                      id_sort_key(x["outlet_id"]))):
+                                                      int(x["outlet_id"][1:]))):
         w.writerow([ln["warehouse_id"], ln["warehouse_name"], ln["batch_id"], ln["expiry_date"], ln["product_id"],
                     ln["product_name"], ln["outlet_id"], ln["outlet_name"], ln["qty"], ln["lead_time_days"],
                     ln["life_on_arrival_days"], f"{ln['unit_cost']:.2f}", f"{ln['line_cost']:.2f}"])
@@ -148,7 +147,7 @@ def scenarios_run(req: RunRequest):
             a = {(r["outlet_id"], r["product_id"]): r for r in s0["allocation"]}
             b = {(r["outlet_id"], r["product_id"]): r for r in run["allocation"]}
             changed = []
-            for k in sorted(set(a) | set(b), key=lambda k: (id_sort_key(k[0]), k[1])):
+            for k in sorted(set(a) | set(b), key=lambda k: (int(k[0][1:]), k[1])):
                 ra, rb = a.get(k), b.get(k)
                 src_a = {(s["warehouse_id"], s["batch_id"]): s["qty"] for s in (ra or {}).get("sources", [])}
                 src_b = {(s["warehouse_id"], s["batch_id"]): s["qty"] for s in (rb or {}).get("sources", [])}

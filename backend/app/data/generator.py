@@ -52,8 +52,8 @@ def generate_dataset(
     module: str,
     seed: int = 42,
     contested_pattern: bool = True,
-    n_warehouses: int | None = None,
-    n_outlets: int | None = None,
+    n_warehouses: int = 5,
+    n_outlets: int = 12,
     n_products: int = 15,
     history_days: int = 180,
     planning_date: date = PLANNING_DATE,
@@ -62,84 +62,41 @@ def generate_dataset(
         raise ValueError(f"unknown module {module!r}")
     rng = np.random.default_rng([seed, catalog.MODULE_SEED_OFFSET[module]])
 
-    raw_warehouses = catalog.WAREHOUSES.get(module, [])
-    if n_warehouses is None:
-        n_warehouses = len(raw_warehouses) if raw_warehouses else 4
-
-    raw_shops = catalog.SHOPS.get(module, [])
-    if n_outlets is None:
-        n_outlets = len(raw_shops) if raw_shops else 8
-
-    hub_wh = catalog.HUB_WAREHOUSES.get(module, raw_warehouses[0]["id"] if raw_warehouses else "W1")
-
     # ---------------- warehouses ----------------
     warehouses = []
     for i in range(n_warehouses):
-        if i < len(raw_warehouses):
-            rw = raw_warehouses[i]
-            wid = rw["id"]
-            name = rw["name"]
-            city = rw["city"]
-            state = rw.get("state", "")
-            lat = rw["lat"]
-            lon = rw["lng"]
-            region = catalog.state_to_region(state)
-            cold = rw.get("cold_chain", True)
-            cap_num = rw.get("units", 300000)
-            size = float(round(cap_num / 300000.0, 2))
-            warehouses.append({
-                "warehouse_id": wid, "name": name, "city": city, "state": state, "lat": lat, "lon": lon,
-                "region": region, "type": rw.get("type", "Hub"), "contact": rw.get("contact", ""),
-                "capacity": rw.get("capacity", ""), "status": "operational", "cold_storage": cold, "_size": size,
-            })
+        if i < len(catalog.WAREHOUSES):
+            wid, name, city, lat, lon, region, cold, size = catalog.WAREHOUSES[i]
         else:
-            wid = f"WH-{module[:3].upper()}-{i + 1:02d}"
-            lat, lon = float(rng.uniform(16.5, 28.5)), float(rng.uniform(72.5, 88.5))
-            name, city, state = f"Regional DC {i + 1}", f"City {i + 1}", "National"
-            region = catalog.state_to_region(state)
+            wid = f"W{i + 1}"
+            lat, lon = float(rng.uniform(16.5, 21.3)), float(rng.uniform(73.0, 79.8))
+            name, city, region = f"Satellite DC {i + 1}", f"Site {i + 1}", _region_for(lat, lon)
             cold, size = bool(rng.random() < 0.7), float(rng.uniform(0.7, 1.1))
-            warehouses.append({
-                "warehouse_id": wid, "name": name, "city": city, "state": state, "lat": lat, "lon": lon,
-                "region": region, "type": "Regional Hub", "contact": "", "capacity": "",
-                "status": "operational", "cold_storage": cold, "_size": size,
-            })
+        warehouses.append({
+            "warehouse_id": wid, "name": name, "city": city, "lat": lat, "lon": lon,
+            "region": region, "status": "operational", "cold_storage": cold, "_size": size,
+        })
 
     # ---------------- outlets ----------------
+    profiles = catalog.OUTLET_PROFILES[module]
     outlets = []
     for i in range(n_outlets):
-        if i < len(raw_shops):
-            rs = raw_shops[i]
-            did = rs["id"]
-            name = rs["name"]
-            city = rs["city"]
-            state = rs.get("state", "")
-            lat = rs["lat"]
-            lon = rs["lng"]
-            region = catalog.state_to_region(state)
-            otype = rs.get("type", "Store")
-            remote = rs.get("remote", False)
-            scale = rs.get("scale", 1.0)
-            cold_factor = rs.get("cold_factor", 1.0)
-            storage = rs.get("storage", ("chilled",))
-            outlets.append({
-                "outlet_id": did, "name": name, "type": otype, "city": city, "state": state,
-                "lat": lat, "lon": lon, "region": region, "remote": remote,
-                "priority": rs.get("priority", "Standard"),
-                "storage": ["ambient", *storage],
-                "_scale": scale, "_cold_factor": cold_factor,
-            })
+        if i < len(catalog.OUTLET_SITES):
+            did, city, lat, lon, region, remote, scale = catalog.OUTLET_SITES[i]
         else:
-            did = f"SH-{module[:3].upper()}-{i + 1:02d}"
-            lat, lon = float(rng.uniform(16.5, 28.5)), float(rng.uniform(72.5, 88.5))
-            city, state = f"Town {i + 1}", "National"
-            region = catalog.state_to_region(state)
-            remote = bool(rng.random() < 0.3)
-            scale = float(rng.uniform(0.8, 1.4))
-            outlets.append({
-                "outlet_id": did, "name": f"Shop #{i + 1}", "type": "Retail Store", "city": city, "state": state,
-                "lat": lat, "lon": lon, "region": region, "remote": remote, "priority": "Standard",
-                "storage": ["ambient", "chilled"], "_scale": scale, "_cold_factor": 1.0,
-            })
+            did = f"D{i + 1}"
+            lat, lon = float(rng.uniform(16.5, 21.3)), float(rng.uniform(72.9, 80.0))
+            city, region = f"Town {i + 1}", _region_for(lat, lon)
+            remote = region == "Vidarbha-Marathwada" and bool(rng.random() < 0.6)
+            scale = float(rng.uniform(0.45, 0.7) if remote else rng.uniform(0.8, 1.5))
+        otype, oname, storage, cold_factor = profiles[i % len(profiles)]
+        if i >= len(profiles):
+            oname = f"{oname.split(' ', 1)[-1]} #{i + 1}"
+        outlets.append({
+            "outlet_id": did, "name": oname, "type": otype, "city": city, "lat": lat, "lon": lon,
+            "region": region, "remote": remote, "storage": ["ambient", *storage],
+            "_scale": scale, "_cold_factor": cold_factor,
+        })
 
     # ---------------- products ----------------
     base_products = catalog.PRODUCTS[module]
@@ -247,17 +204,15 @@ def generate_dataset(
 
     # ---------------- batches ----------------
     wids = [w["warehouse_id"] for w in warehouses]
-    hub = hub_wh if hub_wh in wids else wids[0]
-    others = [w for w in wids if w != hub]
+    others = [w for w in wids if w != HUB_WAREHOUSE]
     batches = []
     bno = 0
     stock_vol_by_w = {w: 0.0 for w in wids}
     for pi, p in enumerate(products):
         need_week = weekly_units[:, pi].sum()
         total = need_week * rng.uniform(1.35, 1.75)
-        num_others = min(2, len(others))
-        holders = [hub, *sorted(rng.choice(others, size=num_others, replace=False).tolist(),
-                                key=wids.index)]
+        holders = [HUB_WAREHOUSE, *sorted(rng.choice(others, size=2, replace=False).tolist(),
+                                          key=wids.index)]
         shares = rng.dirichlet(np.full(len(holders), 3.0))
         shelf = p["shelf_life_days"]
         for wid, share in zip(holders, shares, strict=False):
@@ -292,8 +247,8 @@ def generate_dataset(
         for di, o in enumerate(outlets):
             km = haversine_km(w["lat"], w["lon"], o["lat"], o["lon"]) * 1.3
             lead = 1 + int(km // 350)
-            dedicated = contested_pattern and o["remote"] and w["warehouse_id"] == hub
-            is_open = not (contested_pattern and o["remote"] and w["warehouse_id"] != hub)
+            dedicated = contested_pattern and o["remote"] and w["warehouse_id"] == HUB_WAREHOUSE
+            is_open = not (contested_pattern and o["remote"] and w["warehouse_id"] != HUB_WAREHOUSE)
             cap_factor = rng.uniform(1.1, 1.4) if dedicated else rng.uniform(0.45, 0.8)
             routes.append({
                 "route_id": f"{w['warehouse_id']}-{o['outlet_id']}",

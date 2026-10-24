@@ -99,21 +99,6 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
   return null;
 }
 
-function MapFitter({ points }: { points: LatLng[] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (points.length >= 2 && map?.fitBounds) {
-      try {
-        const bounds = L.latLngBounds(points);
-        map.fitBounds(bounds, { padding: [35, 35], maxZoom: 6 });
-      } catch {
-        /* ignore in testing environments without layout */
-      }
-    }
-  }, [map, points]);
-  return null;
-}
-
 /**
  * Shared delivery map, drawn like a network: deliveries are curved arcs that fade towards both ends,
  * with a faint straight "shadow" underneath for depth; small 3D trucks drive along them; sending
@@ -137,17 +122,11 @@ export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutl
     return a && b ? [{ a, b, qty: f.qty }] : [];
   });
 
-    const allPoints = useMemo(() => [
-      ...warehouses.map((w) => [w.lat, w.lon] as LatLng),
-      ...outlets.map((o) => [o.lat, o.lon] as LatLng),
-    ], [warehouses, outlets]);
-
-    return (
-      <div>
-        {tileError && <div className="p-3"><Notice tone="warn">The background map could not load (offline?). Markers and lines still show.</Notice></div>}
-        <div className="overflow-hidden rounded-2xl" style={{ height }}>
-          <MapContainer center={[21.8, 79.5]} zoom={4.8} zoomSnap={0.2} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
-            <MapFitter points={allPoints} />
+  return (
+    <div>
+      {tileError && <div className="p-3"><Notice tone="warn">The background map could not load (offline?). Markers and lines still show.</Notice></div>}
+      <div className="overflow-hidden rounded-2xl" style={{ height }}>
+        <MapContainer center={[19.3, 76.2]} zoom={6.4} zoomSnap={0.2} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
           <TileLayer attribution={`&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · ${TRUCK_CREDIT}`}
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" eventHandlers={{ tileerror: () => setTileError(true) }} />
           {closedRoads.map((r) => {

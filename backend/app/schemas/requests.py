@@ -35,13 +35,13 @@ class ForecastTrainRequest(_Req):
 
 class ForecastPredictRequest(_Req):
     module: str = ModuleId
-    outlet_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,20}$")
-    product_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,20}$")
+    outlet_id: str | None = Field(default=None, pattern=r"^D\d{1,4}$")
+    product_id: str | None = Field(default=None, pattern=r"^P\d{2,4}$")
 
 
 class OverrideRequest(_Req):
-    batch_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,20}$")
-    outlet_id: str = Field(pattern=r"^[A-Za-z0-9_-]{1,20}$")
+    batch_id: str = Field(pattern=r"^B\d{3,6}$")
+    outlet_id: str = Field(pattern=r"^D\d{1,4}$")
     new_qty: int = Field(ge=-1_000_000, le=1_000_000)
     reason: str = Field(min_length=3, max_length=500)
     actor: str | None = Field(default=None, max_length=80)

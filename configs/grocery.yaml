@@ -1,10 +1,7 @@
 industry: grocery
-company: Nestle
-company_name: Nestlé India
-color: "#10b981"
-display_name: Nestlé India (Grocery)
-description: Order rationing for quick-commerce dark stores, hubs, and supermarkets across India.
-destination_types: ["10-Min Dark Store", "Quick-Commerce Dark Store", "Quick-Commerce Hub", "Modern Trade Supermarket", "Premium Gourmet Grocery", "supermarket", "kirana"]
+display_name: Grocery Retail
+description: Order rationing for kirana stores and supermarkets (pull network).
+destination_types: [kirana, supermarket]
 planning:
   review_period_days: 7
   need_source: orders

@@ -28,7 +28,6 @@ export default function App() {
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="map" element={<MapPage />} />
-          <Route path="warehouse-3d" element={<MapPage initialTab="interior" />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="export" element={<ExportPage />} />

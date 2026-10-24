@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.data.catalog import id_sort_key
-
 
 class NetworkEditError(ValueError):
     pass
@@ -58,9 +56,9 @@ def apply_network(ds: dict, edit: NetworkEdit) -> dict:
         r["open"] = want
         (opened if want else closed).append(r["route_id"])
     return {
-        "warehouses_kept": sorted(keep_w, key=id_sort_key),
-        "warehouses_removed": sorted(all_w - keep_w, key=id_sort_key),
-        "outlets_kept": sorted(keep_d, key=id_sort_key),
-        "outlets_removed": sorted(all_d - keep_d, key=id_sort_key),
+        "warehouses_kept": sorted(keep_w, key=lambda x: int(x[1:])),
+        "warehouses_removed": sorted(all_w - keep_w, key=lambda x: int(x[1:])),
+        "outlets_kept": sorted(keep_d, key=lambda x: int(x[1:])),
+        "outlets_removed": sorted(all_d - keep_d, key=lambda x: int(x[1:])),
         "roads_closed": sorted(closed), "roads_opened": sorted(opened),
     }

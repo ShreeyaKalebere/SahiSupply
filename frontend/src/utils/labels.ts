@@ -2,7 +2,7 @@
 import type { AllocationRow, Alternative, InsightItem, ScenarioId } from "../types/api";
 
 export const MODULE_LABEL: Record<string, string> = { pharmacy: "Pharmacy", grocery: "Grocery", cosmetics: "Cosmetics" };
-export const STORE_WORD: Record<string, string> = { pharmacy: "24x7 chemists & hospitals", grocery: "dark stores & supermarkets", cosmetics: "salons, studios & department stores" };
+export const STORE_WORD: Record<string, string> = { pharmacy: "pharmacies, clinics & hospitals", grocery: "kiranas & supermarkets", cosmetics: "beauty stores, salons & department stores" };
 
 export const SCENARIO_TEXT: Record<ScenarioId, { name: string; text: string }> = {
   S0: { name: "Normal week", text: "No problems - a regular week." },
@@ -85,7 +85,7 @@ export function friendlyTitle(kind: string, title: string): string {
   return title;
 }
 
-const WAREHOUSE_ID = /\b(WH-[A-Z0-9-]+|W\d+)\b/g;
+const WAREHOUSE_ID = /\bW\d+\b/g;
 
 /** One card per action: several batches of the same product at the same warehouse read as duplicates. */
 export function uniqueInsights(items: InsightItem[], whName: (id: string) => string): (InsightItem & { label: string })[] {

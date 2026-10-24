@@ -56,17 +56,16 @@ def test_engine_falls_back_to_builtin_without_credentials(ctx, monkeypatch):
 
 def test_weather_closures_close_roads_touching_heavy_rain(datasets, monkeypatch):
     ds = datasets["pharmacy"]
-    first_w = ds["warehouses"][0]["warehouse_id"]
     n = len(ds["warehouses"]) + len(ds["outlets"])
     def fake(points):
         days = {"time": ["2026-10-26", "2026-10-27"]}
-        # first point gets 80 mm -> heavy; everything else dry
+        # first point (W1) gets 80 mm -> heavy; everything else dry
         return [{"daily": {**days, "precipitation_sum": [80.0 if i == 0 else 1.0, 0.0]}} for i in range(len(points))]
     monkeypatch.setattr(live_weather, "_fetch", fake)
     live_weather._cache.clear()
     r = live_weather.weather_closures(ds, 64.5)
-    assert r["heavy_sites"] == [first_w] and len(r["sites"]) == n
-    assert r["roads_to_close"] and all(x.startswith(f"{first_w}-") for x in r["roads_to_close"])
+    assert r["heavy_sites"] == ["W1"] and len(r["sites"]) == n
+    assert r["roads_to_close"] and all(x.startswith("W1-") for x in r["roads_to_close"])
     live_weather._cache.clear()
 
 

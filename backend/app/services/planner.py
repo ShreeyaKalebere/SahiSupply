@@ -13,7 +13,6 @@ import uuid
 from datetime import date, datetime, timezone
 
 from app.config import get_settings
-from app.data.catalog import id_sort_key
 from app.forecasting.service import ForecastResult, get_forecast
 from app.inventory.eligibility import build_eligibility, evaluate_pair
 from app.inventory.net_need import compute_need
@@ -115,7 +114,7 @@ def allocation_rows(problem: PlanningProblem, plan: Plan, check_valid: bool) -> 
     for ln in enrich_lines(problem, plan):
         by_pair.setdefault((ln["outlet_id"], ln["product_id"]), []).append(ln)
     rows = []
-    for (d, p), q in sorted(problem.need.items(), key=lambda kv: (id_sort_key(kv[0][0]), kv[0][1])):
+    for (d, p), q in sorted(problem.need.items(), key=lambda kv: (int(kv[0][0][1:]), kv[0][1])):
         if q <= 0:
             continue
         lines = by_pair.get((d, p), [])

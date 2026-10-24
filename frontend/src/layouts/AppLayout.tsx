@@ -1,6 +1,6 @@
 import {
-  Boxes, CalendarDays, CloudLightning, Compass, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb,
-  Network, Play, Settings2, Truck, TrendingUp, Warehouse as WarehouseIcon,
+  Boxes, CalendarDays, Network, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
+  Play, Settings2, Truck, TrendingUp,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -15,8 +15,6 @@ import { MODULE_LABEL, SCENARIO_TEXT } from "../utils/labels";
 const MAIN = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/planner", label: "Delivery plan", icon: Truck },
-  { to: "/map", label: "3D Distribution", icon: Compass },
-  { to: "/warehouse-3d", label: "3D Warehouse", icon: WarehouseIcon },
   { to: "/network", label: "Network builder", icon: Network },
   { to: "/scenarios", label: "What-if", icon: CloudLightning },
   { to: "/insights", label: "Smart suggestions", icon: Lightbulb },
@@ -25,6 +23,7 @@ const MAIN = [
 ];
 const MORE = [
   { to: "/comparison", label: "vs. Manual planning", icon: GitCompareArrows },
+  { to: "/map", label: "Map", icon: Map },
   { to: "/history", label: "Past plans", icon: History },
   { to: "/export", label: "Download plan", icon: Download },
   { to: "/config", label: "Rules & settings", icon: Settings2 },
@@ -73,10 +72,9 @@ export function AppLayout() {
             <div className="flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Business type">
               {p.modules.map((m) => (
                 <button key={m.industry} role="tab" aria-selected={p.module === m.industry} onClick={() => p.setModule(m.industry)}
-                  className={cx("rounded-lg px-3 py-1.5 text-sm font-medium flex items-center gap-1.5",
-                    p.module === m.industry ? "bg-white text-primary-600 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-800")}>
-                  {m.color && <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />}
-                  {m.company ? `${m.company} (${MODULE_LABEL[m.industry] ?? m.display_name})` : (MODULE_LABEL[m.industry] ?? m.display_name)}
+                  className={cx("rounded-lg px-3 py-1.5 text-sm font-medium",
+                    p.module === m.industry ? "bg-white text-primary-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
+                  {MODULE_LABEL[m.industry] ?? m.display_name}
                 </button>
               ))}
             </div>

@@ -11,7 +11,6 @@ from __future__ import annotations
 import math
 import time
 
-from app.data.catalog import id_sort_key
 from app.inventory.eligibility import Eligibility, build_eligibility
 from app.inventory.problem import PlanningProblem
 from app.optimization.plan import Plan, make_line, sort_lines
@@ -31,7 +30,7 @@ def greedy_plan(problem: PlanningProblem, elig: Eligibility | None = None) -> Pl
         candidates.setdefault((e.outlet_id, e.product_id), []).append(e)
 
     order = sorted(((k, q) for k, q in problem.need.items() if q > 0),
-                   key=lambda kq: (-kq[1], id_sort_key(kq[0][0]), kq[0][1]))
+                   key=lambda kq: (-kq[1], int(kq[0][0][1:]), kq[0][1]))
     alloc: dict[tuple[str, str], int] = {}
     for (d, pid), q in order:
         remaining = q
