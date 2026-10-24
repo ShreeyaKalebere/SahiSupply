@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip as LTooltip, useMap } from "react-leaflet";
 import type { Outlet, Route, Run, Warehouse } from "../types/api";
 import { fmtInt, fmtPct } from "../utils/format";
-import { loadTruckSprites, spriteIndex, TRUCK_CREDIT } from "../utils/truckSprites";
+import { loadTruckSheet, SPRITE_COUNT, spriteIndex, TRUCK_CREDIT } from "../utils/truckSprites";
 import { Notice } from "./ui";
 
 export interface Flow { w: string; d: string; qty: number }
@@ -13,7 +13,7 @@ const storeColor = (f: number | undefined) => (f === undefined ? "#94a3b8" : f >
 
 const ARC_LIFT = 0.22;     // how far the arc bows away from the straight line, as a share of its length
 const ARC_SEGMENTS = 14;   // pieces per arc, each with its own opacity, so the line fades towards both ends
-const TRUCK_PX = 34;
+const TRUCK_PX = 18; // about the size of a map dot
 
 /** Control point of a quadratic arc from a to b, bowed to the side that points "up" (north) on the map. */
 function arcControl(a: LatLng, b: LatLng): LatLng {
@@ -35,25 +35,25 @@ function arcPath(a: LatLng, b: LatLng, n = 32): LatLng[] {
 }
 
 /**
- * Small 3D delivery trucks (rendered from the GLB model, one image per heading) drive slowly along each
- * arc from warehouse to store. Busier lanes carry two trucks. Markers are moved in one
- * requestAnimationFrame loop (~30 fps), outside React. Falls back to dots if the model cannot load;
- * no motion when the user prefers reduced motion.
+ * Small yellow 3D delivery trucks drive slowly and smoothly along each arc from warehouse to store.
+ * Busier lanes carry two trucks. Each marker shows its heading by shifting one shared sprite sheet
+ * (no image swaps, no fading), and markers move every animation frame outside React. Falls back to
+ * dots if the model cannot load; no motion when the user prefers reduced motion.
  */
 function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] }) {
   const map = useMap();
-  const [sprites, setSprites] = useState<string[] | null>(null);
+  const [sheet, setSheet] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const key = useMemo(() => lanes.map((l) => `${l.a}|${l.b}|${l.qty}`).join(";"), [lanes]);
 
   useEffect(() => {
     let live = true;
-    loadTruckSprites().then((s) => live && setSprites(s)).catch(() => live && setFailed(true));
+    loadTruckSheet().then((s) => live && setSheet(s)).catch(() => live && setFailed(true));
     return () => { live = false; };
   }, []);
 
   useEffect(() => {
-    if (!map || lanes.length === 0 || (!sprites && !failed)) return;
+    if (!map || lanes.length === 0 || (!sheet && !failed)) return;
     if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const group = L.layerGroup().addTo(map);
     const max = Math.max(1, ...lanes.map((l) => l.qty));
@@ -61,9 +61,9 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
     lanes.forEach((l, i) => {
       const n = 1 + Math.round(l.qty / max);
       for (let k = 0; k < n; k++) {
-        const html = sprites
-          ? `<img src="${sprites[0]}" style="width:${TRUCK_PX}px;height:${TRUCK_PX}px" alt="" draggable="false" />`
-          : `<span class="truck-dot"></span>`;
+        const html = sheet
+          ? `<span class="truck-sprite" style="width:${TRUCK_PX}px;height:${TRUCK_PX}px;background-image:url(${sheet});background-size:${TRUCK_PX * SPRITE_COUNT}px ${TRUCK_PX}px"></span>`
+          : `<span class="truck-dot" style="margin:${TRUCK_PX / 2 - 4}px"></span>`;
         const icon = L.divIcon({ className: "truck-icon", html, iconSize: [TRUCK_PX, TRUCK_PX], iconAnchor: [TRUCK_PX / 2, TRUCK_PX / 2] });
         const marker = L.marker(l.a, { icon, interactive: false, keyboard: false });
         group.addLayer(marker);
@@ -71,34 +71,31 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
       }
     });
     let raf = 0;
-    let last = 0;
     const tick = (t: number) => {
       raf = requestAnimationFrame(tick);
-      if (t - last < 33) return;
-      last = t;
+      const origin = map.getPixelOrigin();
+      // Unrounded layer point: Leaflet's setLatLng snaps markers to whole pixels, which made slow
+      // trucks jitter in 1 px steps. Positioning the element directly keeps the motion smooth.
+      const layerPoint = (ll: LatLng) => map.project(ll).subtract(origin);
       for (const m of movers) {
         const u = (t / m.dur + m.offset) % 1;
-        const at = arcPoint(m.a, m.c, m.b, u);
-        m.marker.setLatLng(at);
+        const p1 = layerPoint(arcPoint(m.a, m.c, m.b, u));
         const el = m.marker.getElement();
-        if (!el) continue;
-        el.style.opacity = String(u < 0.06 ? u / 0.06 : u > 0.92 ? (1 - u) / 0.08 : 1);
-        if (sprites) {
-          const ahead = arcPoint(m.a, m.c, m.b, Math.min(1, u + 0.01));
-          const p1 = map.latLngToLayerPoint(at), p2 = map.latLngToLayerPoint(ahead);
-          const idx = spriteIndex(p2.x - p1.x, p2.y - p1.y);
-          if (idx !== m.idx) {
-            const img = el.querySelector("img");
-            if (img) img.src = sprites[idx];
-            m.idx = idx;
-          }
+        if (el) L.DomUtil.setPosition(el, p1);
+        if (!sheet) continue;
+        const p2 = layerPoint(arcPoint(m.a, m.c, m.b, Math.min(1, u + 0.02)));
+        const idx = spriteIndex(p2.x - p1.x, p2.y - p1.y);
+        if (idx !== m.idx) {
+          const sprite = m.marker.getElement()?.firstElementChild as HTMLElement | null;
+          if (sprite) sprite.style.backgroundPosition = `${-idx * TRUCK_PX}px 0`;
+          m.idx = idx;
         }
       }
     };
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); group.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, key, sprites, failed]);
+  }, [map, key, sheet, failed]);
   return null;
 }
 

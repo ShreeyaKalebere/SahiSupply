@@ -42,8 +42,8 @@
 }
 /* Map trucks: transparent Leaflet icon wrapper, soft ground shadow; dot fallback if the 3D model can't load. */
 .truck-icon { background: transparent; border: 0; }
-.truck-icon img { display: block; filter: drop-shadow(0 3px 2px rgba(15, 23, 42, 0.35)); pointer-events: none; user-select: none; }
-.truck-dot { display: block; width: 8px; height: 8px; margin: 13px; border-radius: 9999px; background: #fff; border: 2px solid #1d4ed8; }
+.truck-sprite { display: block; background-repeat: no-repeat; filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.45)); pointer-events: none; }
+.truck-dot { display: block; width: 8px; height: 8px; border-radius: 9999px; background: #facc15; border: 2px solid #a16207; }
 @media (prefers-reduced-motion: reduce) {
   .hub-pulse { animation: none; }
 }
