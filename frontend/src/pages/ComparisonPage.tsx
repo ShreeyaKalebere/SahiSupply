@@ -1,33 +1,19 @@
 import { useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ShieldCheck, Trophy } from "lucide-react";
 import { api, ApiError } from "../api/client";
 import { RunRequired } from "../components/RunRequired";
-import { Badge, Card, Delta, ErrorBox, Kpi, Notice, PageHeader, Spinner, ValidityBadge } from "../components/ui";
+import { Card, Details, ErrorBox, Notice, PageHeader, Pill, Spinner } from "../components/ui";
 import { usePlanner } from "../hooks/usePlanner";
-import type { Evaluation, Kpis, Run } from "../types/api";
+import type { Evaluation, Run } from "../types/api";
 import { CHART } from "../utils/chart";
-import { fmtInt, fmtNum, fmtPct, fmtRs, shortHash } from "../utils/format";
-
-type Row = { label: string; key: keyof Kpis; fmt: (n: number) => string; good: "up" | "down"; deltaFmt?: (n: number) => string };
-
-const ROWS: Row[] = [
-  { label: "Fill rate", key: "fill_rate", fmt: (n) => fmtPct(n), good: "up", deltaFmt: (n) => `${(n * 100).toFixed(1)} pp` },
-  { label: "Delivered units", key: "delivered_units", fmt: fmtInt, good: "up" },
-  { label: "Unmet demand (units)", key: "unmet_units", fmt: fmtInt, good: "down" },
-  { label: "Transport cost", key: "transport_cost", fmt: (n) => fmtRs(n), good: "down" },
-  { label: "Cost per delivered unit", key: "cost_per_delivered_unit", fmt: (n) => fmtRs(n, 2), good: "down" },
-  { label: "Expiry-risk units", key: "expiry_risk_units", fmt: fmtInt, good: "down" },
-  { label: "Critical shortage units", key: "critical_shortage_units", fmt: fmtInt, good: "down" },
-  { label: "Freshness on arrival", key: "freshness_on_arrival_pct", fmt: (n) => `${fmtNum(n)}%`, good: "up" },
-  { label: "Net margin (synthetic)", key: "net_margin", fmt: (n) => fmtRs(n), good: "up" },
-  { label: "Blocked units shipped", key: "blocked_units_shipped", fmt: fmtInt, good: "down" },
-];
+import { fmtInt, fmtPct, fmtRs, shortHash } from "../utils/format";
 
 export default function ComparisonPage() {
   return (
     <div>
-      <PageHeader title="Baseline comparison"
-        description="Greedy spreadsheet-style baseline vs batch-level optimizer, computed on identical inputs (same fingerprint, same rules). Differences are reported as measured - including where the optimizer is worse." />
+      <PageHeader title="Our plan vs. manual planning"
+        description="Manual planning = how a planner with a spreadsheet would split stock, one warehouse at a time, biggest orders first. Both plans use exactly the same stock, orders and rules." />
       <RunRequired>{(run) => <Body run={run} />}</RunRequired>
     </div>
   );
@@ -35,98 +21,77 @@ export default function ComparisonPage() {
 
 function Body({ run }: { run: Run }) {
   const opt = run.optimizer;
-  const base = run.baseline;
-  if (!opt) return <Notice tone="danger">No optimized plan in this run; only the baseline is available.</Notice>;
-  const cmp = run.comparison!;
-  const bi = cmp.business_impact;
-  const chart = [
-    { metric: "Fill rate %", Optimized: opt.kpis.fill_rate * 100, Baseline: base.kpis.fill_rate * 100 },
-    ...(opt.kpis.critical_need_units ? [{ metric: "Critical fill %", Optimized: (opt.kpis.critical_fill_rate ?? 0) * 100, Baseline: (base.kpis.critical_fill_rate ?? 0) * 100 }] : []),
+  if (!opt || !run.comparison) return <Notice tone="danger">No plan to compare.</Notice>;
+  const k = opt.kpis, b = run.baseline.kpis, bi = run.comparison.business_impact;
+  const rows: { label: string; ours: string; manual: string; better: boolean | null }[] = [
+    { label: "Orders delivered", ours: fmtPct(k.fill_rate, 0), manual: fmtPct(b.fill_rate, 0), better: k.fill_rate > b.fill_rate + 1e-9 ? true : k.fill_rate < b.fill_rate - 1e-9 ? false : null },
+    { label: "Units short", ours: fmtInt(k.unmet_units), manual: fmtInt(b.unmet_units), better: k.unmet_units < b.unmet_units ? true : k.unmet_units > b.unmet_units ? false : null },
+    ...(k.critical_need_units > 0 ? [{ label: "Critical medicines short", ours: fmtInt(k.critical_shortage_units), manual: fmtInt(b.critical_shortage_units),
+      better: k.critical_shortage_units < b.critical_shortage_units ? true : k.critical_shortage_units > b.critical_shortage_units ? false : null }] : []),
+    { label: "Stock left to expire", ours: fmtInt(k.expiry_risk_units), manual: fmtInt(b.expiry_risk_units), better: k.expiry_risk_units < b.expiry_risk_units ? true : k.expiry_risk_units > b.expiry_risk_units ? false : null },
+    { label: "Delivery cost per unit", ours: fmtRs(k.cost_per_delivered_unit, 2), manual: fmtRs(b.cost_per_delivered_unit, 2), better: k.cost_per_delivered_unit < b.cost_per_delivered_unit - 1e-9 ? true : k.cost_per_delivered_unit > b.cost_per_delivered_unit + 1e-9 ? false : null },
   ];
+  const chart = Object.entries(k.by_region).map(([region, r]) => ({ region, "Our plan": Math.round(r.fill_rate * 100), "Manual planning": Math.round((b.by_region[region]?.fill_rate ?? 0) * 100) }));
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-        <Badge color="blue">Same data fingerprint: <span className="font-mono">{shortHash(run.fairness.fingerprint)}</span></Badge>
-        <ValidityBadge valid={opt.check.valid} label={`Optimizer ${opt.check.valid ? "valid" : "INVALID"}`} />
-        <ValidityBadge valid={base.check.valid} label={`Baseline ${base.check.valid ? "valid" : "INVALID"}`} />
-        <span>{run.scenario_id} · {run.scenario.name} · contested pattern {run.contested_pattern ? "on" : "off"}</span>
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {rows.map((r) => (
+          <div key={r.label} className="card p-5">
+            <div className="text-sm font-medium text-slate-600">{r.label}</div>
+            <div className="mt-2 flex items-end justify-between">
+              <div><div className="text-xs text-slate-400">Our plan</div><div className="text-2xl font-bold text-slate-900">{r.ours}</div></div>
+              <div className="text-right"><div className="text-xs text-slate-400">Manual</div><div className="text-lg font-semibold text-slate-500">{r.manual}</div></div>
+            </div>
+            <div className="mt-3">{r.better === true ? <Pill tone="green"><Trophy size={12} aria-hidden /> Our plan is better</Pill>
+              : r.better === false ? <Pill tone="amber">Manual is better here</Pill> : <Pill>Same</Pill>}</div>
+          </div>
+        ))}
       </div>
-      <div className="grid gap-3 xl:grid-cols-3">
-        <Card title="KPI comparison" className="xl:col-span-2" bodyClass="p-0">
-          <table className="tbl">
-            <thead><tr><th>KPI</th><th className="num">Greedy baseline</th><th className="num">Optimized</th><th className="num">Difference</th></tr></thead>
-            <tbody>
-              {ROWS.map((r) => {
-                const a = opt.kpis[r.key] as number | null;
-                const b = base.kpis[r.key] as number | null;
-                return (
-                  <tr key={r.key}>
-                    <td>{r.label}</td>
-                    <td className="num">{b == null ? "—" : r.fmt(b)}</td>
-                    <td className="num font-medium text-slate-900">{a == null ? "—" : r.fmt(a)}</td>
-                    <td className="num"><Delta value={a == null || b == null ? null : a - b} format={r.deltaFmt ?? r.fmt} goodWhen={r.good} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
-        <Card title="Fill rate, optimized vs baseline">
-          <div className="h-56">
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card title="Orders delivered, by area" className="xl:col-span-2">
+          <div className="h-64">
             <ResponsiveContainer>
-              <BarChart data={chart} barGap={2} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+              <BarChart data={chart} barGap={2} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid vertical={false} stroke={CHART.grid} />
-                <XAxis dataKey="metric" tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={{ stroke: CHART.grid }} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} cursor={{ fill: "#f1f5f9" }} />
+                <XAxis dataKey="region" tick={{ fontSize: 12, fill: CHART.axis }} tickLine={false} axisLine={{ stroke: CHART.grid }} />
+                <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11, fill: CHART.axis }} tickLine={false} axisLine={false} />
+                <Tooltip formatter={(v: number) => `${v}%`} cursor={{ fill: "#f1f5f9" }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="Optimized" fill={CHART.opt} radius={[4, 4, 0, 0]} maxBarSize={36} />
-                <Bar dataKey="Baseline" fill={CHART.base} radius={[4, 4, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="Our plan" fill={CHART.opt} radius={[4, 4, 0, 0]} maxBarSize={34} />
+                <Bar dataKey="Manual planning" fill={CHART.base} radius={[4, 4, 0, 0]} maxBarSize={34} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
+        <Card title="What this is worth (sample prices)">
+          <div className="text-3xl font-bold text-emerald-600">{fmtRs(bi.net_weekly_benefit)}</div>
+          <div className="text-sm text-slate-500">estimated extra value this week</div>
+          <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
+            <li>+ {fmtRs(bi.lost_margin_avoided)} fewer lost sales</li>
+            <li>+ {fmtRs(bi.waste_avoided)} less waste</li>
+            <li>{bi.delta_delivery_cost >= 0 ? "−" : "+"} {fmtRs(Math.abs(bi.delta_delivery_cost))} {bi.delta_delivery_cost >= 0 ? "extra" : "lower"} delivery cost</li>
+            {bi.critical_units_gained !== 0 && <li>{bi.critical_units_gained > 0 ? "+" : ""}{fmtInt(bi.critical_units_gained)} more critical medicine units delivered</li>}
+          </ul>
+        </Card>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
-        <Kpi label="Lost margin avoided" value={fmtRs(bi.lost_margin_avoided)} sub="Δ short × margin × 0.40" />
-        <Kpi label="Waste avoided" value={fmtRs(bi.waste_avoided)} sub="Δ expiry-risk × unit cost" />
-        <Kpi label="Δ delivery cost" value={fmtRs(bi.delta_delivery_cost)} />
-        <Kpi label="Net weekly benefit" value={fmtRs(bi.net_weekly_benefit)} tone={bi.net_weekly_benefit > 0 ? "good" : "bad"} sub="illustrative, synthetic prices" />
-        <Kpi label="Critical units gained" value={fmtInt(bi.critical_units_gained)} sub="units, not rupees" tone={bi.critical_units_gained > 0 ? "good" : bi.critical_units_gained < 0 ? "bad" : "neutral"} />
-      </div>
-      <Notice>{bi.note}</Notice>
+      {run.rules_off && (
+        <Card title="What your rules protect you from" icon={ShieldCheck}>
+          <p className="text-sm text-slate-700">
+            Without the expiry and storage rules, <b className="text-rose-600">{fmtInt(run.rules_off.kpis.blocked_units_shipped)} units</b> would have been sent that are too close to
+            expiry or need a fridge the store doesn't have. With the rules on, that number is <b className="text-emerald-600">0</b>.
+          </p>
+        </Card>
+      )}
 
-      <div className="grid gap-3 xl:grid-cols-2">
-        {run.rules_off && (
-          <Card title="Rules-off diagnostic (not the fair baseline)" subtitle={`Same optimizer with ${run.rules_off.disabled_rules.join(", ")} switched off`}>
-            <div className="grid grid-cols-3 gap-3">
-              <Kpi label="Blocked units shipped" value={fmtInt(run.rules_off.kpis.blocked_units_shipped)} tone="bad" sub="rules-on: 0" />
-              <Kpi label="Fill rate (rules off)" value={fmtPct(run.rules_off.kpis.fill_rate)} />
-              <Kpi label="Fill rate (rules on)" value={fmtPct(opt.kpis.fill_rate)} />
-            </div>
-            {run.rules_off.kpis.blocked_lines.length > 0 && (
-              <ul className="mt-3 space-y-1 text-xs text-slate-600">
-                {run.rules_off.kpis.blocked_lines.slice(0, 5).map((b, i) => (
-                  <li key={i}><b>{b.qty}</b> × {b.batch_id} → {b.outlet_id}: {b.reason}</li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-2 text-[11px] text-slate-500">{run.rules_off.note}</p>
-          </Card>
-        )}
-        {run.equity && (
-          <Card title={`Equity guardrail (C4) - ${run.equity.floor_pct}% floor for ${run.equity.classes.join(", ")}`}>
-            <div className="grid grid-cols-3 gap-3">
-              <Kpi label="Cost of fairness" value={fmtRs(run.equity.cost_of_fairness, 2)} sub="delivery cost on − off" />
-              <Kpi label="Below floor (on)" value={run.equity.below_floor_on.length} sub={`off: ${run.equity.below_floor_off.length}`} />
-              <Kpi label="Critical short (on)" value={fmtInt(run.equity.critical_shortage_on)} sub={`off: ${fmtInt(run.equity.critical_shortage_off)}`} />
-            </div>
-            <p className="mt-2 text-[11px] text-slate-500">{run.equity.note}</p>
-          </Card>
-        )}
-      </div>
-      <FairEvaluation />
+      <Details label="Show technical details (fairness, all scenarios)">
+        <p>Both plans share data fingerprint <span className="font-mono">{shortHash(run.fairness.fingerprint)}</span>; optimizer checker {opt.check.valid ? "valid" : "INVALID"}, manual plan checker {run.baseline.check.valid ? "valid" : "INVALID"}.</p>
+        <p className="mt-1">{bi.note}</p>
+        {run.equity && <p className="mt-1">Fair-share rule cost: {fmtRs(run.equity.cost_of_fairness, 2)} delivery cost; stores below the floor {run.equity.below_floor_off.length} → {run.equity.below_floor_on.length}.</p>}
+        <div className="mt-3"><FairEvaluation /></div>
+      </Details>
     </div>
   );
 }
@@ -142,41 +107,20 @@ function FairEvaluation() {
   };
   const shown = data && data.module === p.module ? data : null;
   return (
-    <Card title="Fair evaluation: S0-S3, contested-supply pattern on and off"
-      subtitle="North-star: fill rate under disruption with zero violations, optimizer vs baseline on identical data"
-      actions={<button className="btn-secondary" onClick={() => void load()} disabled={busy}>{busy ? "Solving 16 plans…" : shown ? "Recompute" : "Run evaluation"}</button>}>
+    <div className="space-y-2">
+      <button className="btn-secondary" onClick={() => void load()} disabled={busy}>{busy ? "Comparing 16 plans…" : "Compare across all what-ifs (pattern on & off)"}</button>
       <ErrorBox error={err} />
-      {busy && !shown && <Spinner label="Solving optimizer + baseline for 8 scenario/pattern combinations…" />}
-      {!shown && !busy && <p className="text-sm text-slate-500">Runs S0-S3 with the pattern on and off and reports measured differences.</p>}
+      {busy && !shown && <Spinner />}
       {shown && (
-        <>
-          <div className="mb-2 flex flex-wrap gap-2 text-xs">
-            <Badge color={shown.north_star.target_met ? "green" : "amber"}>Target ({shown.north_star.target}): {shown.north_star.target_met ? "met" : "not met"}</Badge>
-            <Badge>pattern on: {shown.north_star.scenarios_meeting_target_pattern_on}/3 scenarios ≥ +5 pp</Badge>
-            <Badge>pattern off: {shown.north_star.scenarios_meeting_target_pattern_off}/3</Badge>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="tbl">
-              <thead><tr><th>Scenario</th><th>Pattern</th><th className="num">Baseline fill</th><th className="num">Optimized fill</th><th className="num">Δ pp</th>
-                <th className="num">Critical short (base → opt)</th><th className="num">Cost/unit (base → opt)</th><th>Checker</th><th className="num">Solve</th></tr></thead>
-              <tbody>
-                {shown.rows.map((r) => (
-                  <tr key={`${r.scenario_id}${r.contested_pattern}`}>
-                    <td>{r.scenario_id}</td><td>{r.contested_pattern ? "on" : "off"}</td>
-                    <td className="num">{fmtPct(r.baseline_fill_rate)}</td><td className="num">{fmtPct(r.optimizer_fill_rate)}</td>
-                    <td className="num"><Delta value={r.fill_rate_pp} format={(n) => n.toFixed(1)} goodWhen="up" /></td>
-                    <td className="num">{fmtInt(r.baseline_critical_shortage)} → {fmtInt(r.optimizer_critical_shortage)}</td>
-                    <td className="num">{fmtRs(r.baseline_cost_per_unit, 2)} → {fmtRs(r.optimizer_cost_per_unit, 2)}</td>
-                    <td><ValidityBadge valid={r.optimizer_valid && r.baseline_valid} label={r.optimizer_valid && r.baseline_valid ? "both valid" : "violation"} /></td>
-                    <td className="num">{r.solve_seconds.toFixed(2)}s</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-[11px] text-slate-500">{shown.note}</p>
-        </>
+        <table className="tbl">
+          <thead><tr><th>What-if</th><th>Contested pattern</th><th className="num">Manual</th><th className="num">Our plan</th><th className="num">Difference</th><th>Checks</th></tr></thead>
+          <tbody>{shown.rows.map((r) => (
+            <tr key={`${r.scenario_id}${r.contested_pattern}`}><td>{r.scenario_id}</td><td>{r.contested_pattern ? "on" : "off"}</td>
+              <td className="num">{fmtPct(r.baseline_fill_rate)}</td><td className="num">{fmtPct(r.optimizer_fill_rate)}</td>
+              <td className="num">{r.fill_rate_pp >= 0 ? "+" : ""}{r.fill_rate_pp.toFixed(1)} pp</td><td>{r.optimizer_valid && r.baseline_valid ? "both valid" : "violation"}</td></tr>
+          ))}</tbody>
+        </table>
       )}
-    </Card>
+    </div>
   );
 }

@@ -39,13 +39,13 @@ export default function MapPage() {
 
   return (
     <div className="space-y-3">
-      <PageHeader title="Network map" description="Warehouses (large dark labelled markers; red when closed) and destinations (small circles, coloured by fill rate). Lines connect each source to the destinations it serves in the current plan; width scales with units." />
+      <PageHeader title="Map" description="Big dark dots are warehouses (red if closed). Small dots are stores: green = fully supplied, amber = partly, red = mostly short. Lines show who supplies whom; thicker means more units." />
       <ErrorBox error={whs.error ?? outs.error} />
-      <Notice tone="warn">Lines are straight connections between dataset coordinates, not verified road routes. Distances in the model are haversine × 1.3.</Notice>
-      {tileError && <Notice tone="warn">Map tiles could not be loaded (offline?). Markers still show; the table below lists every flow.</Notice>}
+      <Notice tone="warn">Lines are drawn straight between locations - they are not actual road routes.</Notice>
+      {tileError && <Notice tone="warn">The background map could not load (offline?). The list on the right still shows every delivery.</Notice>}
       <div className="grid gap-3 xl:grid-cols-3">
         <Card className="xl:col-span-2" bodyClass="p-0">
-          <div className="h-[560px] overflow-hidden rounded-lg">
+          <div className="h-[560px] overflow-hidden rounded-2xl">
             <MapContainer center={[19.3, 76.2]} zoom={6.4} zoomSnap={0.2} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
               <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" eventHandlers={{ tileerror: () => setTileError(true) }} />
@@ -73,11 +73,11 @@ export default function MapPage() {
             </MapContainer>
           </div>
         </Card>
-        <Card title="Flows (list view)" bodyClass="p-0">
-          {!run && <p className="p-4 text-sm text-slate-500">Run a plan to see flows.</p>}
+        <Card title="Deliveries (list)" bodyClass="p-0">
+          {!run && <p className="p-4 text-sm text-slate-500">Make a plan to see deliveries.</p>}
           <div className="max-h-[560px] overflow-auto">
             <table className="tbl">
-              <thead><tr><th>From</th><th>To</th><th className="num">Units</th><th className="num">Dest. fill</th></tr></thead>
+              <thead><tr><th>From</th><th>To</th><th className="num">Units</th><th className="num">Store supplied</th></tr></thead>
               <tbody>
                 {flows.sort((a, b) => b.qty - a.qty).map((f) => (
                   <tr key={`${f.w}${f.d}`}><td>{f.w}</td><td>{f.d} {O.find((o) => o.outlet_id === f.d)?.name}</td>

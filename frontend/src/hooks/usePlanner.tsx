@@ -67,7 +67,8 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     if (runs[module]) return;
     api.history(module, 10)
       .then(async (h) => {
-        const latest = h.data.find((r) => r.status === "VALID");
+        // Prefer the latest normal-week plan so the dashboard opens on the regular situation.
+        const latest = h.data.find((r) => r.status === "VALID" && r.scenario_id === "S0") ?? h.data.find((r) => r.status === "VALID");
         if (!latest) return;
         const full = await api.getRun(latest.plan_id);
         setRuns((prev) => (prev[module] ? prev : { ...prev, [module]: full.data }));

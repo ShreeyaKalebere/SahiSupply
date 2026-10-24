@@ -1,93 +1,106 @@
-import { CloudLightning } from "lucide-react";
-import { Badge, Card, Delta, Kpi, Notice, PageHeader, Spinner } from "../components/ui";
+import { ArrowRight, CalendarCheck, CloudRain, PartyPopper, Snowflake, Warehouse, type LucideIcon } from "lucide-react";
+import { Card, Details, PageHeader, Pill, Spinner } from "../components/ui";
 import { usePlanner } from "../hooks/usePlanner";
 import type { ScenarioId } from "../types/api";
 import { cx, fmtInt, fmtPct, fmtRs } from "../utils/format";
+import { SCENARIO_TEXT } from "../utils/labels";
+
+const ICON: Record<ScenarioId, LucideIcon> = { S0: CalendarCheck, S1: PartyPopper, S2: Warehouse, S3: CloudRain, S4: Snowflake };
 
 export default function ScenariosPage() {
   const p = usePlanner();
   const run = p.run;
   const diff = p.scenarioDiff;
-  const showing = run && run.scenario_id !== "S0" && diff;
+  const showing = run && run.scenario_id !== "S0" && diff && run.optimizer;
+
   return (
-    <div className="space-y-3">
-      <PageHeader title="Scenario simulator"
-        description="Each scenario applies an explicit change to the base data, then recomputes need, eligibility, both plans, the checker and KPIs. The changed lines are diffed against a fresh S0 plan on the same settings." />
-      <div className="grid gap-3 md:grid-cols-5">
-        {p.scenarios.map((s) => (
-          <button key={s.id} disabled={p.running} onClick={() => void p.runPlan({ scenario: s.id as ScenarioId })}
-            className={cx("rounded-lg border bg-white p-3 text-left hover:border-brand-500 disabled:opacity-60",
-              run?.scenario_id === s.id ? "border-brand-500 ring-1 ring-brand-500" : "border-slate-200")}>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-slate-800">{s.id} · {s.name}</span>
-              {s.priority === "P1" && <Badge color="violet">P1</Badge>}
-            </div>
-            <p className="mt-1 text-xs text-slate-500">{s.change}</p>
-            <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-600"><CloudLightning size={12} aria-hidden /> Run</div>
-          </button>
-        ))}
+    <div className="space-y-5">
+      <PageHeader title="What-if" description="Pick a problem that could happen this week. SahiSupply re-plans everything and shows what changes." />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {(Object.keys(SCENARIO_TEXT) as ScenarioId[]).map((id) => {
+          const Icon = ICON[id];
+          const active = run?.scenario_id === id;
+          return (
+            <button key={id} disabled={p.running} onClick={() => void p.runPlan({ scenario: id })}
+              className={cx("card flex flex-col items-start p-5 text-left transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-60",
+                active && "ring-2 ring-primary-500")}>
+              <span className={cx("grid h-10 w-10 place-items-center rounded-full", active ? "bg-primary-500 text-white" : "bg-primary-50 text-primary-500")}><Icon size={19} aria-hidden /></span>
+              <span className="mt-3 text-sm font-semibold text-slate-900">{SCENARIO_TEXT[id].name}</span>
+              <span className="mt-1 flex-1 text-xs text-slate-500">{SCENARIO_TEXT[id].text}</span>
+              <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary-500">{active ? "Showing now" : "Try it"} <ArrowRight size={13} aria-hidden /></span>
+            </button>
+          );
+        })}
       </div>
-      {p.running && <Spinner label="Re-planning under the scenario…" />}
-      {run && (
-        <Card title={`Assumptions - ${run.scenario_id} ${run.scenario.name}`}>
-          <ul className="list-inside list-disc space-y-0.5 text-sm text-slate-700">
-            {run.scenario.assumptions.map((a, i) => <li key={i}>{a}</li>)}
-          </ul>
-          {Object.keys(run.scenario.changes ?? {}).length > 0 && (
-            <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-2 text-[11px] text-slate-600">{JSON.stringify(run.scenario.changes, null, 1)}</pre>
-          )}
-        </Card>
-      )}
-      {showing && run.optimizer && (
-        <>
-          <div className="grid gap-3 md:grid-cols-5">
-            <Kpi label="Fill rate" value={fmtPct(run.optimizer.kpis.fill_rate)} sub={<>vs S0 <Delta value={diff.kpi_delta.fill_rate * 100} format={(n) => `${n.toFixed(1)} pp`} goodWhen="up" /></>} />
-            <Kpi label="Unmet units" value={fmtInt(run.optimizer.kpis.unmet_units)} sub={<>vs S0 <Delta value={diff.kpi_delta.unmet_units} format={fmtInt} goodWhen="down" /></>} />
-            <Kpi label="Transport cost" value={fmtRs(run.optimizer.kpis.transport_cost)} sub={<>vs S0 <Delta value={diff.kpi_delta.transport_cost} format={(n) => fmtRs(n)} goodWhen="down" /></>} />
-            <Kpi label="Critical short" value={fmtInt(run.optimizer.kpis.critical_shortage_units)} sub={<>vs S0 <Delta value={diff.kpi_delta.critical_shortage_units} format={fmtInt} goodWhen="down" /></>} />
-            <Kpi label="vs baseline (same scenario)" value={<Delta value={run.comparison!.fill_rate_pp} format={(n) => `${n.toFixed(1)} pp`} goodWhen="up" />} sub="fill-rate difference" />
-          </div>
-          {run.regret && !run.regret.error && (
-            <Card title="Disruption regret (P1)" subtitle={run.regret.method}>
-              <div className="mb-3 grid gap-3 md:grid-cols-4">
-                <Kpi label="Regret" value={`${run.regret.regret_pp.toFixed(1)} pp`} sub="re-optimized − applied S0 plan" />
-                <Kpi label="Applied S0 plan fill" value={fmtPct(run.regret.applied_fill_rate)} sub={`${fmtInt(run.regret.adjustments.removed_units)} removed, ${fmtInt(run.regret.adjustments.trimmed_units)} trimmed`} />
-                <Kpi label="Re-optimized fill" value={fmtPct(run.regret.reoptimized_fill_rate)} />
-                <Kpi label="Residual shortfall" value={fmtInt(run.regret.residual_shortfall_units)} sub="re-planning cannot close this" />
+
+      {p.running && <Spinner label="Re-planning for this situation…" />}
+
+      {showing && (() => {
+        const k = run.optimizer!.kpis;
+        const s0 = diff.s0_kpis;
+        const worse = diff.changed_rows.filter((r) => r.scenario_unmet > r.s0_unmet)
+          .sort((a, b) => (b.scenario_unmet - b.s0_unmet) - (a.scenario_unmet - a.s0_unmet)).slice(0, 8);
+        const vsManual = run.comparison?.fill_rate_pp ?? 0;
+        return (
+          <>
+            <Card title={`What changes with "${SCENARIO_TEXT[run.scenario_id].name}"`}>
+              <div className="grid items-center gap-4 md:grid-cols-[1fr_auto_1fr]">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-xs font-medium text-slate-500">Normal week</div>
+                  <div className="mt-1 text-3xl font-bold text-slate-900">{fmtPct(s0.fill_rate, 0)}</div>
+                  <div className="text-xs text-slate-500">orders delivered · {fmtInt(s0.unmet_units)} units short</div>
+                </div>
+                <ArrowRight className="mx-auto hidden text-slate-300 md:block" size={28} aria-hidden />
+                <div className="rounded-xl bg-violet-50 p-4">
+                  <div className="text-xs font-medium text-violet-700">{SCENARIO_TEXT[run.scenario_id].name}</div>
+                  <div className="mt-1 text-3xl font-bold text-slate-900">{fmtPct(k.fill_rate, 0)}</div>
+                  <div className="text-xs text-slate-500">orders delivered · {fmtInt(k.unmet_units)} units short</div>
+                </div>
               </div>
-              <table className="tbl">
-                <thead><tr><th>Region</th><th className="num">Need</th><th className="num">Applied S0</th><th className="num">Re-optimized</th><th className="num">Regret</th><th className="num">Residual shortfall</th></tr></thead>
-                <tbody>
-                  {Object.entries(run.regret.by_region).map(([r, v]) => (
-                    <tr key={r}><td>{r}</td><td className="num">{fmtInt(v.need_units)}</td><td className="num">{fmtPct(v.applied_fill_rate)}</td>
-                      <td className="num">{fmtPct(v.reoptimized_fill_rate)}</td><td className="num">{v.regret_pp.toFixed(1)} pp</td><td className="num">{fmtInt(v.residual_shortfall_units)}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+              <ul className="mt-4 space-y-1.5 text-sm text-slate-700">
+                <li>• {diff.changed_count} store orders were re-routed or changed.</li>
+                <li>• Delivery cost {diff.kpi_delta.transport_cost >= 0 ? "goes up" : "goes down"} by {fmtRs(Math.abs(diff.kpi_delta.transport_cost))}.</li>
+                {k.critical_need_units > 0 && <li>• Critical medicines short: {fmtInt(s0.critical_shortage_units)} → {fmtInt(k.critical_shortage_units)} units.</li>}
+                <li>• Even in this situation, our plan delivers <b>{vsManual >= 0 ? `${vsManual.toFixed(0)}% more` : `${Math.abs(vsManual).toFixed(0)}% less`}</b> than manual planning would.</li>
+                {run.regret && !run.regret.error && <li>• Re-planning helps: keeping last week's plan unchanged would deliver only {fmtPct(run.regret.applied_fill_rate, 0)}.</li>}
+              </ul>
             </Card>
-          )}
-          <Card title={`${diff.changed_count} lines changed vs S0`} bodyClass="p-0">
-            <div className="max-h-[50vh] overflow-auto">
-              <table className="tbl">
-                <thead><tr><th>Destination</th><th>Product</th><th className="num">Need S0 → now</th><th className="num">Allocated S0 → now</th><th className="num">Unmet S0 → now</th><th>Sources S0 → now</th></tr></thead>
-                <tbody>
-                  {diff.changed_rows.map((r) => (
-                    <tr key={`${r.outlet_id}${r.product_id}`}>
-                      <td><div className="font-medium">{r.outlet_name}</div><div className="text-[11px] text-slate-500">{r.region}</div></td>
-                      <td>{r.product_name}</td>
-                      <td className="num">{r.s0_required} → {r.scenario_required}</td>
-                      <td className="num">{r.s0_allocated} → {r.scenario_allocated}</td>
-                      <td className={cx("num", r.scenario_unmet > r.s0_unmet && "text-red-700 font-medium")}>{r.s0_unmet} → {r.scenario_unmet}</td>
-                      <td className="text-xs">{r.s0_sources.join(", ") || "—"} → {r.scenario_sources.join(", ") || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        </>
+
+            <Card title="Stores hit the hardest" subtitle="Orders that get shorter because of this situation" bodyClass="px-2 pb-4 pt-3">
+              {worse.length === 0 ? <p className="px-3 text-sm text-slate-500">No store order gets shorter - the plan absorbs it by re-routing.</p> : (
+                <div className="overflow-x-auto"><table className="tbl min-w-[560px]">
+                  <thead><tr><th>Store</th><th>Product</th><th className="num">Short before</th><th className="num">Short now</th><th>Area</th></tr></thead>
+                  <tbody>
+                    {worse.map((r) => (
+                      <tr key={`${r.outlet_id}${r.product_id}`}>
+                        <td className="font-medium text-slate-900">{r.outlet_name}</td><td>{r.product_name}</td>
+                        <td className="num">{fmtInt(r.s0_unmet)}</td><td className="num font-semibold text-rose-600">{fmtInt(r.scenario_unmet)}</td>
+                        <td><Pill>{r.region}</Pill></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table></div>
+              )}
+            </Card>
+
+            <Details label="Show technical details (assumptions, regret by region)">
+              <ul className="list-inside list-disc">{run.scenario.assumptions.map((a, i) => <li key={i}>{a}</li>)}</ul>
+              <pre className="mt-2 overflow-x-auto rounded bg-white p-2">{JSON.stringify(run.scenario.changes, null, 1)}</pre>
+              {run.regret && !run.regret.error && (
+                <table className="tbl mt-2">
+                  <thead><tr><th>Region</th><th className="num">Last week's plan</th><th className="num">Re-planned</th><th className="num">Still short</th></tr></thead>
+                  <tbody>{Object.entries(run.regret.by_region).map(([r, v]) => (
+                    <tr key={r}><td>{r}</td><td className="num">{fmtPct(v.applied_fill_rate)}</td><td className="num">{fmtPct(v.reoptimized_fill_rate)}</td><td className="num">{fmtInt(v.residual_shortfall_units)}</td></tr>
+                  ))}</tbody>
+                </table>
+              )}
+            </Details>
+          </>
+        );
+      })()}
+      {run && run.scenario_id !== "S0" && !diff && !p.running && (
+        <p className="text-sm text-slate-500">Click the highlighted card again to see what changed compared with a normal week.</p>
       )}
-      {run && run.scenario_id !== "S0" && !diff && <Notice>This run was restored from history; re-run the scenario to see the line-level diff against S0.</Notice>}
     </div>
   );
 }

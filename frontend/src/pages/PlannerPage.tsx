@@ -1,104 +1,76 @@
-import { Search } from "lucide-react";
+import { Search, Truck } from "lucide-react";
 import { useMemo, useState } from "react";
+import { DeliveryTable } from "../components/DeliveryTable";
 import { ExplanationDrawer } from "../components/ExplanationDrawer";
-import { PlanMetaStrip } from "../components/PlanStatus";
+import { PlanTechDetails, RuleCheckBadge } from "../components/PlanStatus";
 import { RunRequired } from "../components/RunRequired";
-import { Badge, Card, Kpi, PageHeader } from "../components/ui";
+import { Card, PageHeader, Tabs } from "../components/ui";
+import { useNetwork } from "../hooks/useNetwork";
 import type { Run } from "../types/api";
-import { cx, fmtInt, fmtPct, fmtRs } from "../utils/format";
+import { fmtInt, fmtPct, fmtRs } from "../utils/format";
+import { lineStatus } from "../utils/labels";
 
 export default function PlannerPage() {
   return (
     <div>
-      <PageHeader title="Allocation planner"
-        description="Batch-level plan from the MILP optimizer. Click a row for the why / why-not explanation and to override a quantity." />
+      <PageHeader title="Delivery plan" description="What each store gets this week, and from which warehouse. Click any row to see why." />
       <RunRequired>{(run) => <PlannerBody run={run} />}</RunRequired>
     </div>
   );
 }
 
+type Filter = "all" | "short" | "critical";
+
 function PlannerBody({ run }: { run: Run }) {
+  const { whName } = useNetwork(run.module);
   const [search, setSearch] = useState("");
-  const [region, setRegion] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [critOnly, setCritOnly] = useState(false);
+  const [filter, setFilter] = useState<Filter>("all");
   const [open, setOpen] = useState<string | null>(null);
   const k = run.optimizer?.kpis;
-  const valid = run.status === "VALID";
+  const hasCritical = run.allocation.some((r) => r.criticality === "critical");
 
-  const regions = useMemo(() => Array.from(new Set(run.allocation.map((r) => r.region))), [run]);
   const rows = useMemo(() => run.allocation.filter((r) => {
     const s = search.toLowerCase();
-    if (s && !`${r.outlet_name} ${r.product_name} ${r.outlet_id} ${r.product_id}`.toLowerCase().includes(s)) return false;
-    if (region !== "all" && r.region !== region) return false;
-    if (status === "short" && r.unmet === 0) return false;
-    if (status === "met" && r.unmet > 0) return false;
-    if (critOnly && r.criticality !== "critical") return false;
+    if (s && !`${r.outlet_name} ${r.product_name}`.toLowerCase().includes(s)) return false;
+    if (filter === "short" && r.unmet === 0) return false;
+    if (filter === "critical" && r.criticality !== "critical") return false;
     return true;
-  }), [run, search, region, status, critOnly]);
+  }), [run, search, filter]);
 
+  const short = run.allocation.filter((r) => lineStatus(r) !== "full").length;
   const exp = open ? run.explanations.find((e) => `${e.outlet_id}|${e.product_id}` === open) : null;
+  if (!run.optimizer || !k) return null;
 
-  if (!run.optimizer) return null;
   return (
-    <div className="space-y-3">
-      <PlanMetaStrip run={run} />
-      {k && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-          <Kpi label="Fill rate" value={fmtPct(k.fill_rate)} sub={`baseline ${fmtPct(run.baseline.kpis.fill_rate)}`} />
-          <Kpi label="Delivered" value={fmtInt(k.delivered_units)} sub={`of ${fmtInt(k.need_units)} needed`} />
-          <Kpi label="Unmet" value={fmtInt(k.unmet_units)} tone={k.unmet_units ? "warn" : "good"} />
-          <Kpi label="Transport cost" value={fmtRs(k.transport_cost)} />
-          <Kpi label="Critical short" value={fmtInt(k.critical_shortage_units)} tone={k.critical_shortage_units ? "bad" : "neutral"} />
-          <Kpi label="Blocked units shipped" value={fmtInt(k.blocked_units_shipped)} tone={k.blocked_units_shipped ? "bad" : "good"}
-            sub={run.rules_off ? `rules-off would ship ${fmtInt(run.rules_off.kpis.blocked_units_shipped)}` : undefined} />
-        </div>
-      )}
-      <Card bodyClass="p-0" title={`${rows.length} of ${run.allocation.length} destination-product lines`}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl bg-white px-5 py-4 shadow-card">
+        <RuleCheckBadge run={run} />
+        <span className="text-sm text-slate-600"><b className="text-slate-900">{fmtPct(k.fill_rate, 0)}</b> of needs delivered</span>
+        <span className="text-sm text-slate-600"><b className="text-slate-900">{fmtInt(k.delivered_units)}</b> units sending</span>
+        <span className="text-sm text-slate-600"><b className="text-rose-600">{short}</b> orders short</span>
+        <span className="text-sm text-slate-600">Delivery cost <b className="text-slate-900">{fmtRs(k.transport_cost)}</b></span>
+      </div>
+
+      <Card title="All store orders" icon={Truck} bodyClass="px-2 pb-4 pt-3"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Tabs<Filter> label="Filter orders" value={filter} onChange={setFilter} options={[
+              { value: "all", label: "All", count: run.allocation.length },
+              { value: "short", label: "Short", count: short },
+              ...(hasCritical ? [{ value: "critical" as Filter, label: "Critical", count: run.allocation.filter((r) => r.criticality === "critical").length }] : []),
+            ]} />
             <label className="relative">
-              <Search size={14} className="absolute left-2 top-2 text-slate-400" aria-hidden />
-              <input aria-label="Search lines" className="input w-48 pl-7" placeholder="Search outlet or product" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Search size={15} className="absolute left-3 top-2.5 text-slate-400" aria-hidden />
+              <input aria-label="Search store or product" className="input w-56 pl-9" placeholder="Search store or product" value={search} onChange={(e) => setSearch(e.target.value)} />
             </label>
-            <select aria-label="Region filter" className="input" value={region} onChange={(e) => setRegion(e.target.value)}>
-              <option value="all">All regions</option>
-              {regions.map((r) => <option key={r}>{r}</option>)}
-            </select>
-            <select aria-label="Status filter" className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="all">All lines</option><option value="short">Short only</option><option value="met">Met only</option>
-            </select>
-            <label className="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" checked={critOnly} onChange={(e) => setCritOnly(e.target.checked)} /> Critical only</label>
           </div>
         }>
-        <div className="max-h-[62vh] overflow-auto">
-          <table className="tbl" aria-label="Allocation plan">
-            <thead>
-              <tr>
-                <th>Destination</th><th>Product</th><th className="num">Required</th><th className="num">Allocated</th>
-                <th className="num">Unmet</th><th>Source (batch)</th><th className="num">Cost</th><th className="num">Life on arrival</th><th>Validation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={`${r.outlet_id}|${r.product_id}`} className="clickable" tabIndex={0}
-                  onClick={() => setOpen(`${r.outlet_id}|${r.product_id}`)}
-                  onKeyDown={(e) => { if (e.key === "Enter") setOpen(`${r.outlet_id}|${r.product_id}`); }}>
-                  <td><div className="font-medium text-slate-800">{r.outlet_name}</div><div className="text-[11px] text-slate-500">{r.outlet_id} · {r.outlet_type} · {r.region}</div></td>
-                  <td>{r.product_name} {r.criticality === "critical" && <Badge color="red">critical</Badge>}</td>
-                  <td className="num">{fmtInt(r.required)}</td>
-                  <td className="num">{fmtInt(r.allocated)}</td>
-                  <td className={cx("num", r.unmet > 0 && "font-semibold text-red-700")}>{fmtInt(r.unmet)}</td>
-                  <td className="text-xs">{r.sources.length ? r.sources.map((s) => <div key={s.batch_id}>{s.warehouse_id} · {s.batch_id} × {s.qty}</div>) : <span className="text-slate-400">—</span>}</td>
-                  <td className="num">{fmtRs(r.transport_cost, 2)}</td>
-                  <td className="num text-xs">{r.sources.map((s) => <div key={s.batch_id}>{s.life_on_arrival_days} d</div>)}</td>
-                  <td>{valid ? <Badge color="green">valid</Badge> : <Badge color="red">invalid</Badge>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="max-h-[64vh] overflow-auto">
+          <DeliveryTable rows={rows} whName={whName} label="Delivery plan" onOpen={(r) => setOpen(`${r.outlet_id}|${r.product_id}`)} />
+          {rows.length === 0 && <p className="px-4 py-6 text-center text-sm text-slate-500">No orders match.</p>}
         </div>
       </Card>
+      <PlanTechDetails run={run} />
       {exp && <ExplanationDrawer run={run} exp={exp} onClose={() => setOpen(null)} />}
     </div>
   );

@@ -135,24 +135,24 @@ browser tests are not automated.
 
 ## Demo workflow (≈ 3 minutes)
 
-1. **Pharmaceuticals → Run plan** (header). Overview shows eligible inventory, forecast, need, fill rate,
-   unmet, cost, expiry risk, the "Valid plan · 0 violations" badge and the data fingerprint.
-2. **Allocation planner** → filter *Short only* + *Critical only* → click *Chandrapur Rural Clinic · Insulin
-   Glargine*: need breakdown, chosen batch and why, every other warehouse's reason (closed route, blocked by
-   C1 with the day count, capacity-bound...), and the shortage reason (clinic fridge full).
-3. In the drawer, try an override of 22 units with a reason → **rejected** by the checker (stock, cold
-   capacity). A smaller change is accepted, logged to `plan_overrides`, and the plan becomes version 2.
-4. **Value insights**: e.g. "A 10 L fridge expansion at Gadchiroli Primary Clinic prevents about 14 critical
-   shortage units" - each measured by an integer re-solve and reproduced by the checker.
-5. **Baseline comparison**: KPI deltas on the same fingerprint, business impact (synthetic ₹, critical units
-   in units), rules-off diagnostic (≈ 556 blocked units would ship), and *Run evaluation* for S0-S3 with the
-   pattern on/off.
-6. **Scenario simulator → S3 Monsoon closure**: 8 routes into Western Maharashtra close; KPIs vs S0, the
-   changed lines, and disruption regret by region.
-7. **Industry configuration**: switch C1 off (rules-off) or C4 on (equity floor) and re-run.
-8. **Grocery Retail → Run plan** (orders mode, FEFO), **Food Distribution → Run plan** (F1/F2).
-9. **Plan export**: FEFO pick-list CSV and print view with module, scenario, fingerprint, status, time.
-10. **Run history**: every run is read back from MongoDB.
+The UI uses plain language; technical numbers sit behind "Show technical details" links. Press **?** in
+the header (or "How it works" in the sidebar) for a 3-step explanation and a glossary.
+
+1. **Pharmacy → Run plan.** The **Dashboard** shows orders delivered vs manual planning, units short,
+   critical medicines short, delivery cost, a "Plan health" donut and an "All rules checked" badge.
+2. **Needs your attention** → click *Chandrapur Rural Clinic · Human Insulin*. The **Why?** panel shows
+   Needed / Sending / Short and explains each warehouse in one sentence (fridge full, road closed, stock
+   already sent to another store, expires too soon...).
+3. In the panel, open **change this delivery** and ask for more than is possible → the change is refused
+   with the reason; a valid change is saved and logged.
+4. **Smart suggestions**: e.g. "Add fridge space at Gadchiroli Primary Clinic - 14 fewer critical shortages",
+   each tested by re-making the plan.
+5. **What-if → Monsoon road closures**: before/after delivered %, what changed, and the stores hit hardest.
+6. **vs. Manual planning**: side-by-side cards, value in ₹ (sample prices), and what your rules prevent.
+7. **Rules & settings**: switch a rule off (e.g. "Fresh on arrival") and run again to see its effect.
+8. Switch to **Grocery** and **Food Distribution** and run a plan in each.
+9. **Download plan**: pick list as CSV, or print view.
+10. **Past plans**: every plan is read back from MongoDB.
 
 ## Implemented
 
@@ -165,7 +165,7 @@ browser tests are not automated.
 * P0-07 greedy baseline, ₹ impact, scenarios S0-S3 (+ S4)
 * P0-08 why / why-not explanations per line and per shortage
 * P0-09 value-of-one-more-unit insights (GLOP duals rank, SCIP re-solves measure, checker reproduces)
-* P0-10 planner workspace (11 views) with real API data only
+* P0-10 planner workspace (11 views, plain-language UI, mobile bottom navigation) with real API data only
 * P0-11 CSV / print export in FEFO order; validated, logged overrides
 * P1-01 equity guardrail with cost of fairness · P1-02 disruption-regret score · P1-03 Leaflet map with list
   fallback · P1-05 F2/C3 storage rules and S4 cold-room failure

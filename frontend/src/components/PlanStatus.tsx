@@ -1,67 +1,60 @@
-import { Database, FlaskConical, HardDriveDownload, ShieldCheck, ShieldX } from "lucide-react";
+import { FlaskConical, HardDriveDownload, ShieldCheck, ShieldX } from "lucide-react";
 import type { Run } from "../types/api";
 import { fmtDateTime, shortHash } from "../utils/format";
-import { Badge, Notice } from "./ui";
+import { Details, Notice, Pill } from "./ui";
 
-/** Plan-level status banner. An invalid or failed plan is never presented as approved. */
+/** A plan that failed the safety check is never shown as approved. */
 export function PlanStatusBanner({ run }: { run: Run }) {
   const opt = run.optimizer;
   if (run.status === "SOLVER_FAILED" || !opt) {
-    return (
-      <Notice tone="danger">
-        <b>No optimized plan.</b> {run.optimizer_error?.message ?? "The solver did not return a feasible plan."} The greedy
-        baseline below is shown for reference only and is labelled as such.
-      </Notice>
-    );
+    return <Notice tone="danger"><b>We couldn't build a plan this time.</b> Only the manual-style plan is available, for reference. Please try again.</Notice>;
   }
   if (!opt.check.valid) {
     return (
       <Notice tone="danger">
-        <b>Plan rejected by the independent checker - NOT approved.</b> {opt.check.violation_count} violation(s), e.g.{" "}
-        {opt.check.violations.slice(0, 2).map((v) => `${v.code}: ${v.message}`).join("; ")}.
+        <b>Do not use this plan.</b> Our safety check found {opt.check.violation_count} problem(s), for example: {opt.check.violations[0]?.message}.
       </Notice>
     );
   }
   return null;
 }
 
-export function PlanMetaStrip({ run }: { run: Run }) {
-  const opt = run.optimizer;
-  const valid = !!opt && opt.check.valid && run.status === "VALID";
+/** One friendly badge: is this plan safe to use? */
+export function RuleCheckBadge({ run }: { run: Run }) {
+  const ok = run.status === "VALID" && !!run.optimizer?.check.valid;
+  return ok ? (
+    <Pill tone="green" title="An independent checker re-verified stock, expiry, storage and capacity for every delivery">
+      <ShieldCheck size={13} aria-hidden /> All rules checked{run.plan_status === "VALID_WITH_OVERRIDES" ? " (with your edits)" : ""}
+    </Pill>
+  ) : (
+    <Pill tone="red"><ShieldX size={13} aria-hidden /> Failed safety check</Pill>
+  );
+}
+
+export function PlanTechDetails({ run }: { run: Run }) {
+  const s = run.optimizer?.solver;
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-      {valid ? (
-        <Badge color="green"><ShieldCheck size={12} aria-hidden /> {run.plan_status === "VALID_WITH_OVERRIDES" ? "Valid (with overrides)" : "Valid plan"} · 0 violations</Badge>
-      ) : (
-        <Badge color="red"><ShieldX size={12} aria-hidden /> {run.status === "SOLVER_FAILED" ? "Solver failed" : "Invalid plan"}</Badge>
-      )}
-      <span className="font-mono" title={run.fingerprint}>fp {shortHash(run.fingerprint)}</span>
-      <span>·</span>
-      <span>{run.plan_id} v{run.version}</span>
-      <span>·</span>
-      <span>{run.scenario_id} {run.scenario.name}</span>
-      {opt && <><span>·</span><span>{opt.solver.status} in {opt.solver.solve_seconds.toFixed(2)}s{opt.solver.gap != null ? ` · gap ${(opt.solver.gap * 100).toFixed(2)}%` : ""}</span></>}
-      <span>·</span>
-      <span>{fmtDateTime(run.created_at)}</span>
-      {!run.contested_pattern && <Badge color="violet">pattern off</Badge>}
-      {Object.entries(run.rule_toggles).filter(([, on]) => !on).length > 0 && (
-        <Badge color="amber">rules switched off: {Object.entries(run.rule_toggles).filter(([, on]) => !on).map(([id]) => id).join(", ")}</Badge>
-      )}
-      {Object.entries(run.rule_toggles).filter(([, on]) => on).map(([id]) => <Badge key={id} color="blue">{id} on</Badge>)}
-    </div>
+    <Details>
+      <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+        <div>Plan ID: <span className="font-mono">{run.plan_id}</span> (version {run.version})</div>
+        <div>Created: {fmtDateTime(run.created_at)}</div>
+        <div>Data fingerprint: <span className="font-mono" title={run.fingerprint}>{shortHash(run.fingerprint)}</span></div>
+        <div>Solver: {s ? `${s.status} in ${s.solve_seconds.toFixed(2)} s${s.gap != null ? `, gap ${(s.gap * 100).toFixed(2)}%` : ""}` : "—"}</div>
+        <div>Rules enforced: {run.rules_enforced.join(", ") || "none"}</div>
+        <div>Checker: {run.optimizer?.check.violation_count ?? "—"} violations over {run.optimizer?.check.checked.lines ?? 0} lines</div>
+        <div>Contested-supply pattern: {run.contested_pattern ? "on" : "off"}</div>
+        <div>Data source: {run.data_source}{run.persisted === false ? " (not saved)" : ""}</div>
+      </dl>
+    </Details>
   );
 }
 
 export function SourceBadges({ dataSource, persisted }: { dataSource?: string; persisted?: boolean }) {
   return (
     <div className="flex items-center gap-1.5">
-      <Badge color="amber"><FlaskConical size={12} aria-hidden /> Synthetic data</Badge>
-      {dataSource === "snapshot" ? (
-        <Badge color="red"><HardDriveDownload size={12} aria-hidden /> Snapshot fallback - MongoDB down</Badge>
-      ) : dataSource ? (
-        <Badge color="green"><Database size={12} aria-hidden /> MongoDB</Badge>
-      ) : null}
-      {persisted === false && <Badge color="red">Not persisted</Badge>}
+      <Pill tone="amber" title="All data in this app is generated for demonstration"><FlaskConical size={12} aria-hidden /> Sample data</Pill>
+      {dataSource === "snapshot" && <Pill tone="red" title="MongoDB is unreachable; showing a read-only copy"><HardDriveDownload size={12} aria-hidden /> Offline copy - database down</Pill>}
+      {persisted === false && <Pill tone="red">Not saved</Pill>}
     </div>
   );
 }

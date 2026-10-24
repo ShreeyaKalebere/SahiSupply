@@ -1,68 +1,139 @@
-import { AlertTriangle, CheckCircle2, Info, Loader2, ShieldAlert, XCircle } from "lucide-react";
-import type { ReactNode } from "react";
+import { AlertTriangle, ChevronDown, Info, Loader2, ShieldAlert, TrendingDown, TrendingUp, type LucideIcon } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import type { ApiError } from "../api/client";
 import { cx } from "../utils/format";
 
-export function Card({ title, subtitle, actions, children, className, bodyClass }: {
-  title?: ReactNode; subtitle?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClass?: string;
+export function Card({ title, subtitle, icon: Icon, actions, children, className, bodyClass }: {
+  title?: ReactNode; subtitle?: ReactNode; icon?: LucideIcon; actions?: ReactNode; children: ReactNode; className?: string; bodyClass?: string;
 }) {
   return (
-    <section className={cx("rounded-lg border border-slate-200 bg-white", className)}>
+    <section className={cx("card", className)}>
       {(title || actions) && (
-        <header className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <div>
-            {title && <h2 className="text-sm font-semibold text-slate-800">{title}</h2>}
-            {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+        <header className="flex flex-wrap items-center justify-between gap-3 px-5 pt-5">
+          <div className="flex items-center gap-3">
+            {Icon && <span className="grid h-9 w-9 place-items-center rounded-xl bg-primary-50 text-primary-500"><Icon size={18} aria-hidden /></span>}
+            <div>
+              {title && <h2 className="text-base font-semibold text-slate-900">{title}</h2>}
+              {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+            </div>
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex items-center gap-2">{actions}</div>}
         </header>
       )}
-      <div className={cx("p-4", bodyClass)}>{children}</div>
+      <div className={cx("p-5", bodyClass)}>{children}</div>
     </section>
   );
 }
 
-export function Kpi({ label, value, sub, tone = "neutral", hint }: {
-  label: string; value: ReactNode; sub?: ReactNode; tone?: "neutral" | "good" | "bad" | "warn"; hint?: string;
+const ICON_TONE = {
+  blue: "bg-primary-500 text-white",
+  green: "bg-emerald-500 text-white",
+  red: "bg-rose-500 text-white",
+  amber: "bg-amber-400 text-slate-900",
+  violet: "bg-violet-500 text-white",
+};
+
+/** KPI card in the reference style: label, big value, coloured icon circle, plain-language hint. */
+export function StatCard({ label, value, icon: Icon, tone = "blue", hint, trend }: {
+  label: string; value: ReactNode; icon: LucideIcon; tone?: keyof typeof ICON_TONE; hint?: ReactNode;
+  trend?: { text: string; good: boolean } | null;
 }) {
-  const toneCls = { neutral: "text-slate-900", good: "text-emerald-700", bad: "text-red-700", warn: "text-amber-700" }[tone];
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3" title={hint}>
-      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</div>
-      <div className={cx("mt-1 text-xl font-semibold tabular-nums", toneCls)}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-slate-500">{sub}</div>}
+    <div className="card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-medium text-slate-600">{label}</div>
+        <span className={cx("grid h-10 w-10 shrink-0 place-items-center rounded-full", ICON_TONE[tone])}><Icon size={18} aria-hidden /></span>
+      </div>
+      <div className="mt-1 text-2xl font-bold tabular-nums text-slate-900">{value}</div>
+      {trend && (
+        <div className={cx("mt-2 flex items-center gap-1 text-xs font-medium", trend.good ? "text-emerald-600" : "text-rose-600")}>
+          {trend.good ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />} {trend.text}
+        </div>
+      )}
+      {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}
     </div>
   );
 }
 
-const BADGE = {
-  gray: "bg-slate-100 text-slate-700 ring-slate-200",
-  green: "bg-emerald-50 text-emerald-800 ring-emerald-200",
-  red: "bg-red-50 text-red-800 ring-red-200",
-  amber: "bg-amber-50 text-amber-800 ring-amber-200",
-  blue: "bg-blue-50 text-blue-800 ring-blue-200",
-  violet: "bg-violet-50 text-violet-800 ring-violet-200",
+const PILL = {
+  green: "bg-emerald-50 text-emerald-700",
+  amber: "bg-amber-50 text-amber-700",
+  red: "bg-rose-50 text-rose-700",
+  blue: "bg-primary-50 text-primary-700",
+  gray: "bg-slate-100 text-slate-600",
+  violet: "bg-violet-50 text-violet-700",
 };
 
-export function Badge({ children, color = "gray", className }: { children: ReactNode; color?: keyof typeof BADGE; className?: string }) {
+export function Pill({ children, tone = "gray", className, title }: { children: ReactNode; tone?: keyof typeof PILL; className?: string; title?: string }) {
+  return <span title={title} className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium", PILL[tone], className)}>{children}</span>;
+}
+
+/** Back-compat alias used by a few pages. */
+export const Badge = ({ children, color = "gray", className }: { children: ReactNode; color?: "gray" | "green" | "red" | "amber" | "blue" | "violet"; className?: string }) =>
+  <Pill tone={color} className={className}>{children}</Pill>;
+
+export function ProgressBar({ value, tone }: { value: number; tone?: "green" | "amber" | "red" | "blue" }) {
+  const v = Math.max(0, Math.min(1, value));
+  const t = tone ?? (v >= 0.66 ? "green" : v >= 0.33 ? "amber" : "red");
+  const color = { green: "bg-emerald-500", amber: "bg-amber-400", red: "bg-rose-500", blue: "bg-primary-500" }[t];
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-inset", BADGE[color], className)}>
-      {children}
-    </span>
+    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={Math.round(v * 100)} aria-valuemin={0} aria-valuemax={100}>
+      <div className={cx("h-full rounded-full", color)} style={{ width: `${v * 100}%` }} />
+    </div>
   );
 }
 
-export function ValidityBadge({ valid, label }: { valid: boolean; label?: string }) {
-  return valid ? (
-    <Badge color="green"><CheckCircle2 size={12} aria-hidden /> {label ?? "Checker: valid"}</Badge>
-  ) : (
-    <Badge color="red"><XCircle size={12} aria-hidden /> {label ?? "Checker: INVALID"}</Badge>
+export interface DonutSlice { label: string; value: number; color: string }
+
+/** Donut with a centre figure and a legend that carries labels, counts and percentages (never colour alone). */
+export function Donut({ data, center, centerSub }: { data: DonutSlice[]; center: ReactNode; centerSub?: string }) {
+  const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
+      <div className="relative h-44 w-44 shrink-0">
+        <ResponsiveContainer>
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="label" innerRadius="62%" outerRadius="100%" paddingAngle={2} stroke="#fff" strokeWidth={2} startAngle={90} endAngle={-270}>
+              {data.map((d) => <Cell key={d.label} fill={d.color} />)}
+            </Pie>
+            <Tooltip formatter={(v: number, n: string) => [`${v} (${Math.round((v / total) * 100)}%)`, n]} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <div className="text-2xl font-bold text-slate-900">{center}</div>
+          {centerSub && <div className="text-[11px] text-slate-500">{centerSub}</div>}
+        </div>
+      </div>
+      <ul className="w-full space-y-2.5 text-sm">
+        {data.map((d) => (
+          <li key={d.label} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-slate-600"><span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} aria-hidden />{d.label}</span>
+            <span className="tabular-nums font-semibold text-slate-800">{d.value} <span className="font-normal text-slate-400">· {Math.round((d.value / total) * 100)}%</span></span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+export function Details({ label = "Show technical details", children }: { label?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-slate-100 bg-slate-50/60">
+      <button className="flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium text-slate-500 hover:text-slate-700"
+        aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {open ? label.replace(/^Show/, "Hide") : label}
+        <ChevronDown size={14} className={cx("transition-transform", open && "rotate-180")} aria-hidden />
+      </button>
+      {open && <div className="border-t border-slate-100 px-4 py-3 text-xs text-slate-600">{children}</div>}
+    </div>
   );
 }
 
 export function Spinner({ label = "Loading…" }: { label?: string }) {
   return (
-    <div role="status" className="flex items-center gap-2 py-8 text-sm text-slate-500 justify-center">
+    <div role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
       <Loader2 className="animate-spin" size={16} aria-hidden /> {label}
     </div>
   );
@@ -71,47 +142,63 @@ export function Spinner({ label = "Loading…" }: { label?: string }) {
 export function ErrorBox({ error, onRetry }: { error: ApiError | null; onRetry?: () => void }) {
   if (!error) return null;
   return (
-    <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+    <div role="alert" className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
       <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
       <div className="flex-1">
         <div className="font-medium">{error.message}</div>
-        <div className="text-xs text-red-700/80">Code: {error.code}{error.status ? ` · HTTP ${error.status}` : ""}</div>
+        <div className="text-xs text-rose-700/80">Error code {error.code}{error.status ? ` · HTTP ${error.status}` : ""}</div>
       </div>
-      {onRetry && <button className="btn-secondary" onClick={onRetry}>Retry</button>}
+      {onRetry && <button className="btn-secondary" onClick={onRetry}>Try again</button>}
     </div>
   );
 }
 
 export function Notice({ children, tone = "info" }: { children: ReactNode; tone?: "info" | "warn" | "danger" }) {
-  const cls = { info: "border-blue-200 bg-blue-50 text-blue-900", warn: "border-amber-200 bg-amber-50 text-amber-900",
-    danger: "border-red-300 bg-red-50 text-red-900" }[tone];
+  const cls = { info: "border-primary-100 bg-primary-50 text-primary-700", warn: "border-amber-200 bg-amber-50 text-amber-800",
+    danger: "border-rose-300 bg-rose-50 text-rose-800" }[tone];
   const Icon = tone === "info" ? Info : tone === "warn" ? AlertTriangle : ShieldAlert;
   return (
-    <div className={cx("flex items-start gap-2 rounded-lg border px-3 py-2 text-xs", cls)}>
-      <Icon size={14} className="mt-0.5 shrink-0" aria-hidden />
+    <div className={cx("flex items-start gap-2 rounded-xl border px-4 py-3 text-sm", cls)}>
+      <Icon size={16} className="mt-0.5 shrink-0" aria-hidden />
       <div>{children}</div>
     </div>
   );
 }
 
-export function EmptyState({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
+export function EmptyState({ title, children, action, icon: Icon }: { title: string; children?: ReactNode; action?: ReactNode; icon?: LucideIcon }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-      <div className="text-sm font-semibold text-slate-800">{title}</div>
-      {children && <div className="mt-1 max-w-md text-sm text-slate-500">{children}</div>}
-      {action && <div className="mt-4">{action}</div>}
+    <div className="card flex flex-col items-center justify-center px-6 py-14 text-center">
+      {Icon && <span className="mb-3 grid h-12 w-12 place-items-center rounded-full bg-primary-50 text-primary-500"><Icon size={22} aria-hidden /></span>}
+      <div className="text-base font-semibold text-slate-900">{title}</div>
+      {children && <div className="mt-1 max-w-lg text-sm text-slate-500">{children}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }
 
 export function PageHeader({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900">{title}</h1>
-        {description && <p className="mt-0.5 max-w-3xl text-sm text-slate-500">{description}</p>}
+        <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+        {description && <p className="mt-1 max-w-3xl text-sm text-slate-500">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+export function Tabs<T extends string>({ value, onChange, options, label }: {
+  value: T; onChange: (v: T) => void; options: { value: T; label: string; count?: number }[]; label: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} className="inline-flex rounded-xl bg-slate-100 p-1">
+      {options.map((o) => (
+        <button key={o.value} role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
+          className={cx("rounded-lg px-3 py-1.5 text-sm font-medium", value === o.value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700")}>
+          {o.label}{o.count !== undefined && <span className="ml-1.5 text-xs text-slate-400">{o.count}</span>}
+        </button>
+      ))}
     </div>
   );
 }
@@ -123,7 +210,7 @@ export function Delta({ value, format, goodWhen }: { value: number | null | unde
   const bad = goodWhen === "up" ? value < -eps : value > eps;
   const sign = value > eps ? "+" : value < -eps ? "−" : "±";
   return (
-    <span className={cx("tabular-nums font-medium", good && "text-emerald-700", bad && "text-red-700", !good && !bad && "text-slate-500")}>
+    <span className={cx("tabular-nums font-semibold", good && "text-emerald-600", bad && "text-rose-600", !good && !bad && "text-slate-500")}>
       {sign}{format(Math.abs(value))}
       <span className="sr-only">{good ? " (better)" : bad ? " (worse)" : " (no change)"}</span>
     </span>

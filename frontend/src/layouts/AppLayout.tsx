@@ -1,99 +1,114 @@
 import {
-  BarChart3, Boxes, CloudLightning, Download, GitCompareArrows, History, LayoutDashboard, Lightbulb, Map, Play,
-  Settings2, Table2, TrendingUp,
+  Boxes, CalendarDays, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
+  Play, Settings2, Truck, TrendingUp,
 } from "lucide-react";
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { HowItWorks } from "../components/HowItWorks";
 import { PlanStatusBanner, SourceBadges } from "../components/PlanStatus";
-import { ErrorBox } from "../components/ui";
+import { ErrorBox, Pill } from "../components/ui";
 import { usePlanner } from "../hooks/usePlanner";
-import type { ScenarioId } from "../types/api";
 import { cx, fmtDate } from "../utils/format";
+import { MODULE_LABEL, SCENARIO_TEXT } from "../utils/labels";
 
-const NAV = [
-  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/planner", label: "Allocation planner", icon: Table2 },
-  { to: "/comparison", label: "Baseline comparison", icon: GitCompareArrows },
-  { to: "/scenarios", label: "Scenario simulator", icon: CloudLightning },
-  { to: "/insights", label: "Value insights", icon: Lightbulb },
-  { to: "/forecast", label: "Demand forecasting", icon: TrendingUp },
-  { to: "/inventory", label: "Inventory & batches", icon: Boxes },
-  { to: "/map", label: "Network map", icon: Map },
-  { to: "/config", label: "Industry configuration", icon: Settings2 },
-  { to: "/history", label: "Run history", icon: History },
-  { to: "/export", label: "Plan export", icon: Download },
+const MAIN = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/planner", label: "Delivery plan", icon: Truck },
+  { to: "/scenarios", label: "What-if", icon: CloudLightning },
+  { to: "/insights", label: "Smart suggestions", icon: Lightbulb },
+  { to: "/inventory", label: "Stock & expiry", icon: Boxes },
+  { to: "/forecast", label: "Demand forecast", icon: TrendingUp },
 ];
+const MORE = [
+  { to: "/comparison", label: "vs. Manual planning", icon: GitCompareArrows },
+  { to: "/map", label: "Map", icon: Map },
+  { to: "/history", label: "Past plans", icon: History },
+  { to: "/export", label: "Download plan", icon: Download },
+  { to: "/config", label: "Rules & settings", icon: Settings2 },
+];
+const MOBILE = [MAIN[0], MAIN[1], MAIN[2], MAIN[4]];
+
+function NavItem({ to, label, icon: Icon, end }: { to: string; label: string; icon: typeof Truck; end?: boolean }) {
+  return (
+    <NavLink to={to} end={end}
+      className={({ isActive }) => cx("relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium",
+        isActive ? "bg-primary-50 text-primary-600 before:absolute before:-left-3 before:top-1.5 before:h-7 before:w-1 before:rounded-r before:bg-primary-500"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900")}>
+      <Icon size={18} aria-hidden /> {label}
+    </NavLink>
+  );
+}
 
 export function AppLayout() {
   const p = usePlanner();
+  const [help, setHelp] = useState(false);
   return (
     <div className="flex min-h-screen">
-      <aside className="no-print sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 lg:flex">
-        <div className="px-4 py-4">
-          <div className="flex items-center gap-2">
-            <div className="grid h-8 w-8 place-items-center rounded-md bg-brand-500 text-white"><BarChart3 size={18} aria-hidden /></div>
-            <div>
-              <div className="text-sm font-semibold text-white">SahiSupply</div>
-              <div className="text-[10px] leading-tight text-slate-400">Right Product. Right Place. Right Time.</div>
-            </div>
+      <aside className="no-print sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-100 bg-white lg:flex">
+        <div className="flex items-center gap-2.5 px-6 py-6">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary-500 text-white"><Truck size={18} aria-hidden /></div>
+          <div>
+            <div className="text-lg font-bold text-slate-900">Sahi<span className="text-primary-500">Supply</span></div>
+            <div className="text-[10px] text-slate-400">Right product · Right place · Right time</div>
           </div>
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-4" aria-label="Main">
-          {NAV.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end}
-              className={({ isActive }) => cx("flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px]",
-                isActive ? "bg-slate-800 text-white" : "hover:bg-slate-800/60 hover:text-white")}>
-              <Icon size={15} aria-hidden /> {label}
-            </NavLink>
-          ))}
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3" aria-label="Main">
+          {MAIN.map((n) => <NavItem key={n.to} {...n} />)}
+          <div className="px-3 pb-1 pt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">More</div>
+          {MORE.map((n) => <NavItem key={n.to} {...n} />)}
         </nav>
-        <div className="border-t border-slate-800 px-4 py-3 text-[10px] leading-snug text-slate-500">
-          All data is synthetic. No regulatory compliance or clinical guidance is claimed.
+        <div className="m-4 rounded-2xl bg-gradient-to-br from-primary-500 to-sky-500 p-4 text-white">
+          <div className="text-sm font-semibold">New here?</div>
+          <p className="mt-1 text-xs text-white/85">See in 30 seconds how the weekly plan is made.</p>
+          <button className="mt-3 w-full rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-primary-600" onClick={() => setHelp(true)}>How it works</button>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="no-print sticky top-0 z-[1000] border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="flex flex-wrap items-center gap-3 px-4 py-2.5">
-            <div className="flex rounded-md border border-slate-200 p-0.5" role="tablist" aria-label="Industry module">
+        <header className="no-print sticky top-0 z-[1000] border-b border-slate-100 bg-white/95 backdrop-blur">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-3 lg:px-8">
+            <div className="flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Business type">
               {p.modules.map((m) => (
-                <button key={m.industry} role="tab" aria-selected={p.module === m.industry}
-                  onClick={() => p.setModule(m.industry)}
-                  className={cx("rounded px-3 py-1 text-[13px] font-medium",
-                    p.module === m.industry ? "bg-brand-500 text-white" : "text-slate-600 hover:bg-slate-100")}>
-                  {m.display_name}
+                <button key={m.industry} role="tab" aria-selected={p.module === m.industry} onClick={() => p.setModule(m.industry)}
+                  className={cx("rounded-lg px-3 py-1.5 text-sm font-medium",
+                    p.module === m.industry ? "bg-white text-primary-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
+                  {MODULE_LABEL[m.industry] ?? m.display_name}
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-1.5 text-xs text-slate-600">
-              Scenario
-              <select aria-label="Scenario" className="input py-1" value={p.scenario}
-                onChange={(e) => p.setScenario(e.target.value as ScenarioId)}>
-                {p.scenarios.map((s) => (
-                  <option key={s.id} value={s.id}>{s.id} · {s.name}{s.priority === "P1" ? " (P1)" : ""}</option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-slate-600" title="Contested-supply pattern: remote outlets only reachable from the hub warehouse">
-              <input type="checkbox" checked={p.contested} onChange={(e) => p.setContested(e.target.checked)} />
-              Contested-supply pattern
-            </label>
-            <button className="btn-primary" onClick={() => void p.runPlan()} disabled={p.running || !p.modules.length}>
-              <Play size={14} aria-hidden /> {p.running ? "Running…" : "Run plan"}
-            </button>
-            <div className="ml-auto flex items-center gap-3">
-              {p.run && <span className="text-xs text-slate-500">Planning week from <b className="text-slate-700">{fmtDate(p.run.planning_date)}</b> · {p.currentModule?.need_source === "orders" ? "orders mode" : "forecast mode"}</span>}
+            {p.run && (
+              <span className="hidden items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-600 md:inline-flex">
+                <CalendarDays size={15} aria-hidden /> Week of {fmtDate(p.run.planning_date)}
+              </span>
+            )}
+            {p.scenario !== "S0" && <Pill tone="violet">What-if: {SCENARIO_TEXT[p.scenario].name}</Pill>}
+            <div className="ml-auto flex items-center gap-2">
               <SourceBadges dataSource={p.run?.data_source} persisted={p.run?.persisted} />
+              <button className="rounded-xl p-2 text-slate-500 hover:bg-slate-100" aria-label="How it works" onClick={() => setHelp(true)}><HelpCircle size={20} /></button>
+              <button className="btn-primary" onClick={() => void p.runPlan()} disabled={p.running || !p.modules.length}>
+                <Play size={15} aria-hidden /> {p.running ? "Planning…" : "Run plan"}
+              </button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 space-y-3 px-4 py-4">
+        <main className="flex-1 space-y-4 px-4 pb-24 pt-6 lg:px-8 lg:pb-8">
           <ErrorBox error={p.bootError} />
           <ErrorBox error={p.runError} />
           {p.run && <PlanStatusBanner run={p.run} />}
           <Outlet />
         </main>
       </div>
+
+      <nav className="no-print fixed inset-x-0 bottom-0 z-[1000] flex border-t border-slate-100 bg-white lg:hidden" aria-label="Mobile">
+        {MOBILE.map(({ to, label, icon: Icon, end }) => (
+          <NavLink key={to} to={to} end={end}
+            className={({ isActive }) => cx("flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium", isActive ? "text-primary-500" : "text-slate-500")}>
+            <Icon size={20} aria-hidden /> {label}
+          </NavLink>
+        ))}
+      </nav>
+      {help && <HowItWorks onClose={() => setHelp(false)} />}
     </div>
   );
 }

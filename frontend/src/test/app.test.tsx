@@ -19,7 +19,7 @@ const scenarios = [
 
 const mocks = vi.hoisted(() => ({
   modules: vi.fn(), scenarios: vi.fn(), history: vi.fn(), getRun: vi.fn(), run: vi.fn(), runScenario: vi.fn(),
-  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(),
+  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(),
 }));
 
 vi.mock("../api/client", async (orig) => {
@@ -43,16 +43,18 @@ beforeEach(() => {
   mocks.history.mockImplementation(() => env([]));
   mocks.dashboard.mockImplementation(() => new Promise(() => undefined)); // stays loading
   mocks.risks.mockImplementation(() => new Promise(() => undefined));
+  mocks.warehouses.mockImplementation(() => env([{ warehouse_id: "W1", name: "Bhiwandi DC" }, { warehouse_id: "W4", name: "Aurangabad DC" }]));
+  mocks.outlets.mockImplementation(() => env([]));
   mocks.exportUrl.mockImplementation((id: string, plan: string) => `/api/optimization/${id}/export.csv?plan=${plan}`);
 });
 
 describe("SahiSupply workspace", () => {
   it("shows loading state and switches modules", async () => {
     renderAt("/");
-    expect(await screen.findByRole("tab", { name: "Pharmaceutical Distribution" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getAllByRole("status")[0]).toHaveTextContent(/loading/i);
-    await userEvent.click(screen.getByRole("tab", { name: "Grocery Retail" }));
-    expect(screen.getByRole("tab", { name: "Grocery Retail" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByRole("tab", { name: "Pharmacy" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Grocery" }));
+    expect(screen.getByRole("tab", { name: "Grocery" })).toHaveAttribute("aria-selected", "true");
     await waitFor(() => expect(mocks.dashboard).toHaveBeenLastCalledWith("grocery", true));
   });
 
@@ -67,14 +69,15 @@ describe("SahiSupply workspace", () => {
     renderAt("/planner");
     await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
     expect(mocks.run).toHaveBeenCalledWith(expect.objectContaining({ module: "pharmacy", scenario_id: "S0" }));
-    const table = await screen.findByRole("table", { name: "Allocation plan" });
+    const table = await screen.findByRole("table", { name: "Delivery plan" });
     const row = within(table).getByText("Lifeline Hospital").closest("tr")!;
-    expect(row).toHaveTextContent("valid");
+    expect(row).toHaveTextContent("Partly sent · 2 short");
+    expect(row).toHaveTextContent("Bhiwandi DC");
     await userEvent.click(row);
     const drawer = await screen.findByRole("dialog");
-    expect(drawer).toHaveTextContent("Why demand is unmet");
-    expect(drawer).toHaveTextContent("cold capacity full");
-    expect(drawer).toHaveTextContent("41 days on arrival < 90");
+    expect(drawer).toHaveTextContent("Why 2 units are short");
+    expect(drawer).toHaveTextContent("This store's fridge is already full.");
+    expect(drawer).toHaveTextContent("Aurangabad DC: its stock expires too soon (41 days on arrival < 90)");
   });
 
   it("switches scenario and calls the scenario endpoint", async () => {
@@ -83,9 +86,9 @@ describe("SahiSupply workspace", () => {
       diff: { changed_rows: [], changed_count: 0, kpi_delta: { fill_rate: -0.05, unmet_units: 10, transport_cost: 5, critical_shortage_units: 1, expiry_risk_units: 0 }, s0_kpis: makeRun().optimizer!.kpis, s0_fingerprint: "x" },
     }));
     renderAt("/scenarios");
-    await userEvent.click(await screen.findByRole("button", { name: /S3 · Monsoon closure/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Monsoon road closures/ }));
     await waitFor(() => expect(mocks.runScenario).toHaveBeenCalledWith(expect.objectContaining({ scenario_id: "S3" })));
-    expect(await screen.findByText("Closed 8 routes")).toBeInTheDocument();
+    expect(await screen.findByText(/What changes with "Monsoon road closures"/)).toBeInTheDocument();
   });
 
   it("never presents an invalid plan as approved", async () => {
@@ -94,28 +97,27 @@ describe("SahiSupply workspace", () => {
     mocks.run.mockImplementation(() => env(bad));
     renderAt("/planner");
     await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
-    expect(await screen.findByText(/NOT approved/)).toBeInTheDocument();
-    const table = await screen.findByRole("table", { name: "Allocation plan" });
-    expect(within(table).getByText("invalid")).toBeInTheDocument();
-    expect(within(table).queryByText(/^valid$/)).toBeNull();
+    expect(await screen.findByText(/Do not use this plan/)).toBeInTheDocument();
+    expect(screen.getAllByText("Failed safety check").length).toBeGreaterThan(0);
+    expect(screen.queryByText("All rules checked")).toBeNull();
   });
 
   it("renders the baseline comparison with measured deltas", async () => {
     mocks.run.mockImplementation(() => env(makeRun()));
     renderAt("/comparison");
     await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
-    expect(await screen.findByText("KPI comparison")).toBeInTheDocument();
-    expect(screen.getByText("+10.0 pp")).toBeInTheDocument();
-    expect(screen.getByText(/Same data fingerprint/)).toBeInTheDocument();
+    expect(await screen.findByText("Orders delivered, by area")).toBeInTheDocument();
+    expect(screen.getAllByText("Our plan is better").length).toBeGreaterThan(0);
+    expect(screen.getByText("90%")).toBeInTheDocument();
   });
 
   it("offers CSV export and a print view with fingerprint and status", async () => {
     mocks.run.mockImplementation(() => env(makeRun()));
     renderAt("/export");
     await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
-    const link = await screen.findByRole("link", { name: /Optimized pick list/ });
+    const link = await screen.findByRole("link", { name: /Download pick list/ });
     expect(link).toHaveAttribute("href", "/api/optimization/PLN-TEST000001/export.csv?plan=optimizer");
-    expect(screen.getByText(/abcdef0123456789abcdef/)).toBeInTheDocument();
+    expect(screen.getByText(/fingerprint abcdef0123456789abcdef/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Print view/ })).toBeInTheDocument();
   });
 
@@ -123,7 +125,7 @@ describe("SahiSupply workspace", () => {
     mocks.run.mockImplementation(() => env(makeRun({ data_source: "snapshot", persisted: false })));
     renderAt("/planner");
     await userEvent.click((await screen.findAllByRole("button", { name: /run plan/i }))[0]);
-    expect(await screen.findByText(/Snapshot fallback/)).toBeInTheDocument();
-    expect(screen.getByText("Not persisted")).toBeInTheDocument();
+    expect(await screen.findByText(/Offline copy/)).toBeInTheDocument();
+    expect(screen.getByText("Not saved")).toBeInTheDocument();
   });
 });
