@@ -1,6 +1,6 @@
 import {
-  Boxes, CalendarDays, Network, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
-  Play, Settings2, Truck, TrendingUp,
+  Boxes, CalendarDays, CloudLightning, Compass, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb,
+  Network, Play, Settings2, Truck, TrendingUp, Warehouse as WarehouseIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
@@ -15,6 +15,8 @@ import { MODULE_LABEL, SCENARIO_TEXT } from "../utils/labels";
 const MAIN = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/planner", label: "Delivery plan", icon: Truck },
+  { to: "/map", label: "3D Distribution", icon: Compass },
+  { to: "/warehouse-3d", label: "3D Warehouse", icon: WarehouseIcon },
   { to: "/network", label: "Network builder", icon: Network },
   { to: "/scenarios", label: "What-if", icon: CloudLightning },
   { to: "/insights", label: "Smart suggestions", icon: Lightbulb },
@@ -23,7 +25,6 @@ const MAIN = [
 ];
 const MORE = [
   { to: "/comparison", label: "vs. Manual planning", icon: GitCompareArrows },
-  { to: "/map", label: "Map", icon: Map },
   { to: "/history", label: "Past plans", icon: History },
   { to: "/export", label: "Download plan", icon: Download },
   { to: "/config", label: "Rules & settings", icon: Settings2 },
