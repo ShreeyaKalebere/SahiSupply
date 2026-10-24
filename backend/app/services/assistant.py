@@ -125,7 +125,7 @@ def _find_store(q: str, ctx: dict) -> list[str]:
     hits = []
     for sid, name in names.items():
         tokens = [t for t in re.split(r"[^a-z]+", name.lower()) if len(t) > 3 and t not in {"store", "clinic", "pharmacy", "hospital", "salon", "beauty", "kirana", "mart"}]
-        if sid.lower() in re.findall(r"\bd\d+\b", q) or any(t in q for t in tokens):
+        if sid.lower() in q.lower() or any(t in q for t in tokens):
             hits.append(sid)
     return hits
 

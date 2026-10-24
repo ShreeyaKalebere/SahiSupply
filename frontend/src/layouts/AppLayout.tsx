@@ -72,9 +72,10 @@ export function AppLayout() {
             <div className="flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Business type">
               {p.modules.map((m) => (
                 <button key={m.industry} role="tab" aria-selected={p.module === m.industry} onClick={() => p.setModule(m.industry)}
-                  className={cx("rounded-lg px-3 py-1.5 text-sm font-medium",
-                    p.module === m.industry ? "bg-white text-primary-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
-                  {MODULE_LABEL[m.industry] ?? m.display_name}
+                  className={cx("rounded-lg px-3 py-1.5 text-sm font-medium flex items-center gap-1.5",
+                    p.module === m.industry ? "bg-white text-primary-600 shadow-sm font-semibold" : "text-slate-500 hover:text-slate-800")}>
+                  {m.color && <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />}
+                  {m.company ? `${m.company} (${MODULE_LABEL[m.industry] ?? m.display_name})` : (MODULE_LABEL[m.industry] ?? m.display_name)}
                 </button>
               ))}
             </div>

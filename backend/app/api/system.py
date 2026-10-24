@@ -44,7 +44,8 @@ def get_metrics():
 
 def _module_summary(cfg) -> dict:
     return {
-        "industry": cfg.industry, "display_name": cfg.display_name, "description": cfg.description,
+        "industry": cfg.industry, "company": cfg.company, "company_name": cfg.company_name, "color": cfg.color,
+        "display_name": cfg.display_name, "description": cfg.description,
         "destination_types": cfg.destination_types, "need_source": cfg.planning.need_source,
         "review_period_days": cfg.planning.review_period_days, "kpis": cfg.kpis,
         "rules": [{"id": r.id, "template": r.template, "status": r.status, "default_on": r.default_on,

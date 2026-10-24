@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from app.data.catalog import id_sort_key
 from app.inventory.problem import PlanningProblem
 
 
@@ -34,4 +35,4 @@ def make_line(problem: PlanningProblem, batch_id: str, outlet_id: str, qty: int)
 
 
 def sort_lines(lines: list[dict]) -> list[dict]:
-    return sorted(lines, key=lambda ln: (int(ln["outlet_id"][1:]), ln["product_id"], ln["batch_id"]))
+    return sorted(lines, key=lambda ln: (id_sort_key(ln["outlet_id"]), ln["product_id"], ln["batch_id"]))

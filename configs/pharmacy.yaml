@@ -1,7 +1,10 @@
 industry: pharmacy
-display_name: Pharmaceutical Distribution
-description: Batch-level medicine allocation to pharmacies, clinics and hospitals (push network).
-destination_types: [pharmacy, clinic, hospital]
+company: Cipla
+company_name: Cipla Ltd.
+color: "#06b6d4"
+display_name: Cipla Ltd. (Pharmaceuticals)
+description: Batch-level medicine and vaccine allocation to 24x7 chemists and hospital pharmacies across India.
+destination_types: ["24x7 Critical Care Chemist", "High-Density Retail Pharmacy", "Super-Speciality Hospital Chemist", "Central Medical Store", "Hospital Pharmacy", "Hospital In-Patient Pharmacy", "24x7 Medical Dispensary", "Tertiary Care Chemist", "pharmacy", "clinic", "hospital"]
 planning:
   review_period_days: 7
   need_source: forecast

@@ -19,6 +19,9 @@ export interface RuleSummary {
 
 export interface ModuleSummary {
   industry: string;
+  company?: string;
+  company_name?: string;
+  color?: string;
   display_name: string;
   description: string;
   destination_types: string[];
@@ -406,12 +409,13 @@ export interface ForecastChart {
 
 export interface Warehouse {
   warehouse_id: string; name: string; city: string; lat: number; lon: number; region: string; status: string;
-  cold_storage: boolean; outbound_capacity_l: number;
+  cold_storage: boolean; outbound_capacity_l: number; state?: string; type?: string; contact?: string; capacity?: string;
 }
 
 export interface Outlet {
   outlet_id: string; name: string; type: string; city: string; lat: number; lon: number; region: string;
   remote: boolean; storage: string[]; receiving_capacity_l: number; cold_capacity_l: number;
+  state?: string; priority?: string;
 }
 
 export interface HistoryRow {

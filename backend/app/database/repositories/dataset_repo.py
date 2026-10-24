@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from pymongo import ReplaceOne
 from pymongo.database import Database
 
+from app.data.catalog import id_sort_key
+
 ENTITY_KEYS = {
     "warehouses": "warehouse_id", "outlets": "outlet_id", "products": "product_id", "batches": "batch_id",
     "open_orders": "order_id",
@@ -69,5 +71,5 @@ def load_dataset(db: Database, module: str, contested_pattern: bool = True) -> d
         "outlet_inventory": list(db.outlet_inventory.find({"module": module}, proj)),
         "calendar": cal,
     }
-    out["outlets"].sort(key=lambda o: int(o["outlet_id"][1:]))
+    out["outlets"].sort(key=lambda o: id_sort_key(o["outlet_id"]))
     return out

@@ -1,7 +1,10 @@
 industry: cosmetics
-display_name: Cosmetics Retail
-description: Beauty-product allocation to beauty stores, salons and department stores (push network).
-destination_types: [beauty_store, salon, department_store]
+company: Lakme
+company_name: Lakmé
+color: "#e879f9"
+display_name: Lakmé (Cosmetics)
+description: Beauty and skincare allocation to flagship studios, luxury counters, and boutiques across India.
+destination_types: ["Flagship Studio", "Luxury Retail Counter", "Premium Mall Store", "Department Store Counter", "Modern Department Store", "Beauty & Personal Care", "Modern Retail Store", "Premium Cosmetics Counter", "beauty_store", "salon", "department_store"]
 planning:
   review_period_days: 7
   need_source: forecast

@@ -109,6 +109,9 @@ class ServiceLevels(_Strict):
 class ModuleConfig(_Strict):
     industry: str = Field(pattern=r"^[a-z][a-z0-9_]{1,30}$")
     display_name: str
+    company: str | None = None
+    company_name: str | None = None
+    color: str | None = None
     description: str = ""
     destination_types: list[str] = Field(min_length=1)
     planning: Planning

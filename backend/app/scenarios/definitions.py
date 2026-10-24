@@ -58,7 +58,7 @@ def apply_scenario(dataset: dict, scenario_id: str) -> AppliedScenario:
         sc.assumptions.append(f"{w['warehouse_id']} {w['name']} closed; its stock cannot be shipped this cycle.")
 
     elif scenario_id == "S3":
-        region_outlets = {o["outlet_id"] for o in ds["outlets"] if o["region"] == MONSOON_REGION}
+        region_outlets = {o["outlet_id"] for o in ds["outlets"] if o["region"] == MONSOON_REGION or "maharashtra" in o.get("state", "").lower()}
         avg_cost: dict[str, list[float]] = {}
         for r in ds["routes"]:
             if r["outlet_id"] in region_outlets:
@@ -74,7 +74,7 @@ def apply_scenario(dataset: dict, scenario_id: str) -> AppliedScenario:
 
     elif scenario_id == "S4":
         cands = [o for o in ds["outlets"] if o["cold_capacity_l"] > 0]
-        clinics = [o for o in cands if o["type"] == "clinic"]
+        clinics = [o for o in cands if any(k in o["type"].lower() for k in ("clinic", "dispensary", "dark store", "chemist"))]
         pool = clinics or [o for o in cands if o.get("remote")] or cands
         target = next((o for o in pool if o["outlet_id"] == "D9"), pool[0]) if pool else None
         if target:

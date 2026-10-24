@@ -6,6 +6,8 @@ from datetime import date, timedelta
 
 import numpy as np
 
+from app.data.catalog import id_sort_key
+
 
 @dataclass
 class SeriesData:
@@ -36,7 +38,7 @@ def build_series(dataset: dict) -> SeriesData:
     horizon = int(meta["horizon_days"])
     start = date.fromisoformat(meta["history_start"])
     dates = [start + timedelta(days=t) for t in range(hist + horizon)]
-    outlet_ids = sorted({o["outlet_id"] for o in dataset["outlets"]}, key=lambda s: int(s[1:]))
+    outlet_ids = sorted({o["outlet_id"] for o in dataset["outlets"]}, key=id_sort_key)
     product_ids = sorted({p["product_id"] for p in dataset["products"]})
     keys = [(d, p) for d in outlet_ids for p in product_ids]
     sidx = {k: i for i, k in enumerate(keys)}
