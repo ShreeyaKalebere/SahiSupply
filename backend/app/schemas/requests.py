@@ -45,3 +45,14 @@ class OverrideRequest(_Req):
     new_qty: int = Field(ge=-1_000_000, le=1_000_000)
     reason: str = Field(min_length=3, max_length=500)
     actor: str | None = Field(default=None, max_length=80)
+
+
+class ChatMessage(_Req):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class ChatRequest(_Req):
+    module: str = ModuleId
+    plan_id: str | None = Field(default=None, pattern=r"^PLN-[A-Z0-9]{6,20}$")
+    messages: list[ChatMessage] = Field(min_length=1, max_length=20)

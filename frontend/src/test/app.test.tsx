@@ -19,12 +19,18 @@ const scenarios = [
 
 const mocks = vi.hoisted(() => ({
   modules: vi.fn(), scenarios: vi.fn(), history: vi.fn(), getRun: vi.fn(), run: vi.fn(), runScenario: vi.fn(),
-  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(), routes: vi.fn(),
+  dashboard: vi.fn(), risks: vi.fn(), override: vi.fn(), exportUrl: vi.fn(), config: vi.fn(), warehouses: vi.fn(), outlets: vi.fn(), routes: vi.fn(), liveWeather: vi.fn(), chat: vi.fn(), assistantStatus: vi.fn(),
 }));
 
 vi.mock("../api/client", async (orig) => {
   const actual = await orig<typeof import("../api/client")>();
   return { ...actual, api: mocks };
+});
+// Leaflet needs real browser layout; jsdom gets light stand-ins (maps are checked in the real browser).
+vi.mock("react-leaflet", () => {
+  const Box = ({ children }: { children?: React.ReactNode }) => <div data-testid="leaflet">{children}</div>;
+  const Leaf = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
+  return { MapContainer: Box, TileLayer: () => null, Polyline: Leaf, CircleMarker: Leaf, Tooltip: Leaf };
 });
 vi.mock("recharts", async (orig) => {
   const actual = await orig<typeof import("recharts")>();
@@ -43,7 +49,7 @@ beforeEach(() => {
   mocks.history.mockImplementation(() => env([]));
   mocks.dashboard.mockImplementation(() => new Promise(() => undefined)); // stays loading
   mocks.risks.mockImplementation(() => new Promise(() => undefined));
-  mocks.warehouses.mockImplementation(() => env([{ warehouse_id: "W1", name: "Bhiwandi DC" }, { warehouse_id: "W4", name: "Aurangabad DC" }]));
+  mocks.warehouses.mockImplementation(() => env([{ warehouse_id: "W1", name: "Bhiwandi DC", lat: 19.3, lon: 73.06 }, { warehouse_id: "W4", name: "Aurangabad DC", lat: 19.88, lon: 75.34 }]));
   mocks.outlets.mockImplementation(() => env([{ outlet_id: "D1", name: "Lifeline Hospital", city: "Mumbai", lat: 19, lon: 72.8 },
     { outlet_id: "D9", name: "Chandrapur Rural Clinic", city: "Chandrapur", lat: 19.9, lon: 79.3 }]));
   mocks.routes.mockImplementation(() => env([
@@ -52,6 +58,13 @@ beforeEach(() => {
     { route_id: "W4-D1", warehouse_id: "W4", outlet_id: "D1", distance_km: 300, lead_time_days: 1, cost_per_litre: 2, capacity_l: 50, open: true },
     { route_id: "W4-D9", warehouse_id: "W4", outlet_id: "D9", distance_km: 500, lead_time_days: 2, cost_per_litre: 3, capacity_l: 50, open: true },
   ]));
+  mocks.liveWeather.mockImplementation(() => env({
+    source: "Open-Meteo forecast API (live)", source_url: "https://open-meteo.com/", fetched_at: "2026-10-24T10:00:00Z",
+    forecast_days: 7, threshold_mm: 64.5, imd_heavy_rain_mm: 64.5, heavy_sites: [], roads_to_close: [], note: "Only the weather is live.",
+    sites: [{ id: "W1", kind: "warehouse", name: "Bhiwandi DC", city: "Bhiwandi", lat: 19.3, lon: 73, daily: [], max_mm: 4.5, heavy: false }],
+  }));
+  mocks.assistantStatus.mockImplementation(() => env({ engine: "built-in", suggestions: ["How does SahiSupply work?"] }));
+  mocks.chat.mockImplementation(() => env({ reply: "Chandrapur Rural Clinic gets 73% of what it needs.", engine: "built-in", suggestions: [], plan_id: null }));
   mocks.exportUrl.mockImplementation((id: string, plan: string) => `/api/optimization/${id}/export.csv?plan=${plan}`);
 });
 
@@ -162,5 +175,23 @@ describe("SahiSupply workspace", () => {
     await waitFor(() => expect(mocks.dashboard).toHaveBeenLastCalledWith("pharmacy", true));
     expect(store["sahisupply.module"]).toBe("pharmacy");
     vi.unstubAllGlobals();
+  });
+
+  it("chat assistant: opens from any page, sends the question and shows the answer", async () => {
+    renderAt("/");
+    await userEvent.click(await screen.findByRole("button", { name: "Ask SahiSupply" }));
+    const dlg = await screen.findByRole("dialog", { name: "SahiSupply assistant" });
+    expect(dlg).toHaveTextContent("built-in assistant");
+    await userEvent.type(within(dlg).getByRole("textbox", { name: "Your question" }), "Why is Chandrapur short?");
+    await userEvent.click(within(dlg).getByRole("button", { name: "Send" }));
+    expect(await within(dlg).findByText(/gets 73% of what it needs/)).toBeInTheDocument();
+    expect(mocks.chat).toHaveBeenCalledWith("pharmacy", [{ role: "user", content: "Why is Chandrapur short?" }], undefined);
+  });
+
+  it("what-if shows the live weather forecast with its source", async () => {
+    renderAt("/scenarios");
+    expect(await screen.findByText(/Live weather \(real forecast\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/all roads stay open/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open-Meteo" })).toHaveAttribute("href", "https://open-meteo.com/");
   });
 });

@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { ChatWidget } from "../components/ChatWidget";
 import { HowItWorks } from "../components/HowItWorks";
 import { PlanStatusBanner, SourceBadges } from "../components/PlanStatus";
 import { ErrorBox, Pill } from "../components/ui";
@@ -122,6 +123,7 @@ export function AppLayout() {
         ))}
       </nav>
       {help && <HowItWorks onClose={() => setHelp(false)} />}
+      <ChatWidget />
     </div>
   );
 }

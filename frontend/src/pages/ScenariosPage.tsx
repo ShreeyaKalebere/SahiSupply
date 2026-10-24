@@ -1,4 +1,5 @@
 import { ArrowRight, CalendarCheck, CloudRain, PartyPopper, Snowflake, Warehouse, type LucideIcon } from "lucide-react";
+import { LiveWeatherPanel } from "../components/LiveWeatherPanel";
 import { Card, Details, PageHeader, Pill, Spinner } from "../components/ui";
 import { usePlanner } from "../hooks/usePlanner";
 import type { ScenarioId } from "../types/api";
@@ -32,6 +33,8 @@ export default function ScenariosPage() {
           );
         })}
       </div>
+
+      <LiveWeatherPanel />
 
       {p.running && <Spinner label="Re-planning for this situation…" />}
 

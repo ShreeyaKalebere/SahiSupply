@@ -9,6 +9,7 @@ from app.database.repositories import runs_repo
 from app.forecasting.service import get_forecast
 from app.schemas.requests import ForecastPredictRequest, ForecastTrainRequest
 from app.services import data_service, views
+from app.services.live_weather import IMD_HEAVY_RAIN_MM, LiveDataUnavailable, weather_closures
 
 router = APIRouter(prefix="/api", tags=["network"])
 ModuleQ = Query(..., pattern=r"^[a-z][a-z0-9_]{1,30}$")
@@ -101,3 +102,16 @@ def forecast_metrics(module: str = ModuleQ, outlet_id: str | None = Query(None, 
 def evaluation(module: str = ModuleQ):
     require_module(module)
     return ok(views.fair_evaluation(module))
+
+
+@router.get("/live/weather")
+def live_weather(module: str = ModuleQ, contested_pattern: bool = True,
+                 threshold_mm: float = Query(IMD_HEAVY_RAIN_MM, ge=0.1, le=500)):
+    """Real 7-day rainfall forecast for every warehouse and store, and the roads heavy rain would close."""
+    require_module(module)
+    ds, src = data_service.get_dataset(module, contested_pattern)
+    try:
+        data = weather_closures(ds, threshold_mm)
+    except LiveDataUnavailable as exc:
+        raise ApiError(503, "LIVE_DATA_UNAVAILABLE", str(exc)) from None
+    return ok(data, data_source=src, live=True)

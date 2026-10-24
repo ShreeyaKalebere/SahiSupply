@@ -1,93 +1,52 @@
-import { useMemo, useState } from "react";
-import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip as LTooltip } from "react-leaflet";
+import { Map as MapIcon } from "lucide-react";
 import { api } from "../api/client";
+import { closedRoadsFor, flowsFromLines, NetworkMap } from "../components/NetworkMap";
 import { Card, ErrorBox, Notice, PageHeader, Spinner } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
+import { useNetwork } from "../hooks/useNetwork";
 import { usePlanner } from "../hooks/usePlanner";
-import { CHART } from "../utils/chart";
 import { fmtInt, fmtPct } from "../utils/format";
-
-const fillColor = (f: number | undefined) => (f === undefined ? "#94a3b8" : f >= 0.95 ? "#0ca30c" : f >= 0.8 ? "#fab219" : "#d03b3b");
 
 export default function MapPage() {
   const p = usePlanner();
-  const whs = useAsync(() => api.warehouses(p.module), [p.module]);
-  const outs = useAsync(() => api.outlets(p.module), [p.module]);
-  const [tileError, setTileError] = useState(false);
+  const { net } = useNetwork(p.module);
+  const routes = useAsync(() => api.routes(p.module, p.run?.contested_pattern ?? p.contested), [p.module, p.run?.contested_pattern, p.contested]);
   const run = p.run;
-  const flows = useMemo(() => {
-    if (!run?.optimizer) return [];
-    const agg: Record<string, { w: string; d: string; qty: number }> = {};
-    for (const ln of run.optimizer.lines) {
-      const k = `${ln.warehouse_id}|${ln.outlet_id}`;
-      agg[k] = agg[k] ?? { w: ln.warehouse_id, d: ln.outlet_id, qty: 0 };
-      agg[k].qty += ln.qty;
-    }
-    return Object.values(agg);
-  }, [run]);
-  const maxQty = Math.max(1, ...flows.map((f) => f.qty));
-  const closedW = new Set(((run?.scenario.changes as { closed_warehouses?: string[] })?.closed_warehouses) ?? []);
 
-  if (whs.loading || outs.loading) return <Spinner />;
-  const W = whs.data ?? [];
-  const O = outs.data ?? [];
-  const pos = (id: string): [number, number] | null => {
-    const x = W.find((w) => w.warehouse_id === id) ?? O.find((o) => o.outlet_id === id);
-    return x ? [x.lat, x.lon] : null;
-  };
-  const byOutlet = run?.optimizer?.kpis.by_outlet ?? {};
+  if (!net || routes.loading) return <Spinner />;
+  const keptW = run?.network ? new Set(run.network.summary.warehouses_kept) : null;
+  const keptD = run?.network ? new Set(run.network.summary.outlets_kept) : null;
+  const W = net.warehouses.filter((w) => !keptW || keptW.has(w.warehouse_id));
+  const O = net.outlets.filter((o) => !keptD || keptD.has(o.outlet_id));
+  const flows = run?.optimizer ? flowsFromLines(run.optimizer.lines) : [];
+  const closed = closedRoadsFor(run, routes.data ?? []);
+  const fill = Object.fromEntries(Object.entries(run?.optimizer?.kpis.by_outlet ?? {}).map(([d, v]) => [d, v.fill_rate]));
+  const closedW = ((run?.scenario.changes as { closed_warehouses?: string[] })?.closed_warehouses) ?? [];
+  const wName = (id: string) => net.warehouses.find((w) => w.warehouse_id === id)?.name ?? id;
 
   return (
-    <div className="space-y-3">
-      <PageHeader title="Map" description="Big dark dots are warehouses (red if closed). Small dots are stores: green = fully supplied, amber = partly, red = mostly short. Lines show who supplies whom; thicker means more units." />
-      <ErrorBox error={whs.error ?? outs.error} />
-      <Notice tone="warn">Lines are drawn straight between locations - they are not actual road routes.</Notice>
-      {tileError && <Notice tone="warn">The background map could not load (offline?). The list on the right still shows every delivery.</Notice>}
-      <div className="grid gap-3 xl:grid-cols-3">
+    <div className="space-y-4">
+      <PageHeader title="Map" description="Watch this week's deliveries move from warehouses to stores. Red dotted lines are roads that are closed, so those places are not connected." />
+      <ErrorBox error={routes.error} onRetry={routes.reload} />
+      {!run && <Notice>Make a plan (Run plan, top right) to see deliveries moving on the map.</Notice>}
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2" bodyClass="p-0">
-          <div className="h-[560px] overflow-hidden rounded-2xl">
-            <MapContainer center={[19.3, 76.2]} zoom={6.4} zoomSnap={0.2} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
-              <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" eventHandlers={{ tileerror: () => setTileError(true) }} />
-              {flows.map((f) => {
-                const a = pos(f.w), b = pos(f.d);
-                if (!a || !b) return null;
-                return (
-                  <Polyline key={`${f.w}${f.d}`} positions={[a, b]} pathOptions={{ color: CHART.opt, weight: 1.5 + 6 * (f.qty / maxQty), opacity: 0.55 }}>
-                    <LTooltip sticky>{f.w} → {f.d}: {fmtInt(f.qty)} units</LTooltip>
-                  </Polyline>
-                );
-              })}
-              {O.map((o) => (
-                <CircleMarker key={o.outlet_id} center={[o.lat, o.lon]} radius={8}
-                  pathOptions={{ color: "#fff", weight: 2, fillColor: fillColor(byOutlet[o.outlet_id]?.fill_rate), fillOpacity: 1 }}>
-                  <LTooltip>{o.outlet_id} {o.name} ({o.type}){byOutlet[o.outlet_id] ? ` - fill ${fmtPct(byOutlet[o.outlet_id].fill_rate)}, critical short ${byOutlet[o.outlet_id].critical_shortage_units}` : ""}</LTooltip>
-                </CircleMarker>
-              ))}
-              {W.map((w) => (
-                <CircleMarker key={w.warehouse_id} center={[w.lat, w.lon]} radius={11}
-                  pathOptions={{ color: "#0f172a", weight: 3, fillColor: closedW.has(w.warehouse_id) ? "#d03b3b" : "#0f172a", fillOpacity: 1 }}>
-                  <LTooltip permanent direction="right" offset={[10, 0]}>{w.warehouse_id}{closedW.has(w.warehouse_id) ? " (closed)" : ""}</LTooltip>
-                </CircleMarker>
-              ))}
-            </MapContainer>
-          </div>
+          <NetworkMap warehouses={W} outlets={O} flows={flows} closedRoads={closed} fillByOutlet={fill} closedWarehouses={closedW} height={560} />
         </Card>
-        <Card title="Deliveries (list)" bodyClass="p-0">
-          {!run && <p className="p-4 text-sm text-slate-500">Make a plan to see deliveries.</p>}
-          <div className="max-h-[560px] overflow-auto">
-            <table className="tbl">
-              <thead><tr><th>From</th><th>To</th><th className="num">Units</th><th className="num">Store supplied</th></tr></thead>
-              <tbody>
-                {flows.sort((a, b) => b.qty - a.qty).map((f) => (
-                  <tr key={`${f.w}${f.d}`}><td>{f.w}</td><td>{f.d} {O.find((o) => o.outlet_id === f.d)?.name}</td>
-                    <td className="num">{fmtInt(f.qty)}</td><td className="num">{fmtPct(byOutlet[f.d]?.fill_rate)}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <Card title="Deliveries (list)" icon={MapIcon} bodyClass="max-h-[620px] overflow-y-auto p-0">
+          <table className="tbl">
+            <thead><tr><th>From</th><th>To</th><th className="num">Units</th><th className="num">Store got</th></tr></thead>
+            <tbody>
+              {[...flows].sort((a, b) => b.qty - a.qty).map((f) => (
+                <tr key={`${f.w}${f.d}`}><td>{wName(f.w)}</td><td>{O.find((o) => o.outlet_id === f.d)?.name ?? f.d}</td>
+                  <td className="num">{fmtInt(f.qty)}</td><td className="num">{fmtPct(fill[f.d], 0)}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          {closed.length > 0 && <p className="px-4 py-3 text-xs text-slate-500">{closed.length} road(s) closed: {closed.slice(0, 12).map((r) => r.route_id).join(", ")}{closed.length > 12 ? "…" : ""}</p>}
         </Card>
       </div>
+      <p className="text-xs text-slate-400">Lines are straight between locations - they are not actual road routes.</p>
     </div>
   );
 }

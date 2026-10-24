@@ -467,3 +467,17 @@ export interface Health {
   environment: string;
   version: string;
 }
+
+export interface WeatherSite {
+  id: string; kind: "warehouse" | "store"; name: string; city: string; lat: number; lon: number;
+  daily: { date: string; mm: number }[]; max_mm: number; heavy: boolean;
+}
+
+export interface LiveWeather {
+  source: string; source_url: string; fetched_at: string; forecast_days: number; threshold_mm: number;
+  imd_heavy_rain_mm: number; sites: WeatherSite[]; heavy_sites: string[]; roads_to_close: string[]; note: string;
+}
+
+export interface ChatTurn { role: "user" | "assistant"; content: string }
+
+export interface ChatReply { reply: string; engine: "claude" | "built-in"; suggestions: string[]; plan_id: string | null }

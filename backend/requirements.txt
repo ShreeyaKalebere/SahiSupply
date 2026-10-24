@@ -7,3 +7,5 @@ PyYAML==6.0.2
 numpy==2.4.6
 scikit-learn==1.7.2
 ortools==9.15.6755
+# Optional: chat assistant uses Claude when ANTHROPIC_API_KEY is set (built-in answers otherwise)
+anthropic==2.3.0

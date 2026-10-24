@@ -173,11 +173,22 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
 * P0-11 CSV / print export in FEFO order; validated, logged overrides
 * Network builder: user-chosen warehouses/stores and per-road open/close, applied to the data before planning and
   verified by the checker (`backend/app/scenarios/custom.py`)
+* **Ask SahiSupply** chat assistant on every page, grounded in the current plan (`backend/app/services/assistant.py`).
+  Uses Claude (`claude-opus-5-5`, server-side refusal fallback enabled) when `ANTHROPIC_API_KEY` is set; otherwise a
+  built-in assistant answers from the same plan data (store-level "why short", suggestions, terms, pages)
+* **Live weather (real data)**: 7-day rainfall forecast from Open-Meteo for every warehouse/store; roads touching a site
+  at or above the threshold (default 64.5 mm/day, IMD "heavy rain") can be closed and the plan re-made (What-if page).
+  Only the weather is live; stock and demand remain synthetic. If the service is unreachable the API returns 503 - no
+  weather is invented
+* Animated maps: deliveries move from warehouse to store; closed/unconnected roads are red dotted lines
 * P1-01 equity guardrail with cost of fairness · P1-02 disruption-regret score · P1-03 Leaflet map with list
   fallback · P1-05 F2/C3 storage rules and S4 cold-room failure
 * MongoDB persistence (runs, overrides, forecast metrics), labelled snapshot fallback, JSON logs, `/api/metrics`
 
 ## Not implemented / incomplete
+
+* **Real-time stock/demand data**: no public live dataset of distributor batches and orders exists; the app runs on the
+  synthetic dataset. Plugging in a distributor's ERP export (CSV import) is the next step. Live data today = weather only.
 
 * P1-04 Hindi/Marathi WhatsApp dispatch notes (needs a native-speaker check; not built).
 * P1-06 live "add dairy" demo: a new YAML file loads and validates (tested), but the synthetic generator only

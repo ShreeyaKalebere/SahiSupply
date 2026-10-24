@@ -1,6 +1,6 @@
 import { Ban, Check, Network, Play, RotateCcw, Store, Truck, Warehouse as WarehouseIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip as LTooltip } from "react-leaflet";
+import { closedRoadsFor, NetworkMap } from "../components/NetworkMap";
 import { api } from "../api/client";
 import { Card, ErrorBox, Notice, PageHeader, Pill, ProgressBar, Spinner, StatCard } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
@@ -173,23 +173,15 @@ function Result({ run, fullRun, routes }: { run: Run; fullRun: Run | null; route
   if (!k || !net) return null;
   const keptW = new Set(run.network?.summary.warehouses_kept ?? net.warehouses.map((w) => w.warehouse_id));
   const keptD = new Set(run.network?.summary.outlets_kept ?? net.outlets.map((o) => o.outlet_id));
-  const ov = run.network?.edit.route_overrides ?? {};
   const W = net.warehouses.filter((w) => keptW.has(w.warehouse_id));
   const O = net.outlets.filter((o) => keptD.has(o.outlet_id));
-  const pos = (id: string): [number, number] | null => {
-    const x = net.warehouses.find((w) => w.warehouse_id === id) ?? net.outlets.find((o) => o.outlet_id === id);
-    return x ? [x.lat, x.lon] : null;
-  };
   const flows: Record<string, { w: string; d: string; qty: number }> = {};
   for (const ln of run.optimizer!.lines) {
     const key = `${ln.warehouse_id}-${ln.outlet_id}`;
     flows[key] = flows[key] ?? { w: ln.warehouse_id, d: ln.outlet_id, qty: 0 };
     flows[key].qty += ln.qty;
   }
-  const maxQty = Math.max(1, ...Object.values(flows).map((f) => f.qty));
-  const closed = routes.filter((r) => keptW.has(r.warehouse_id) && keptD.has(r.outlet_id) && !(ov[r.route_id] ?? r.open));
   const fill = (d: string) => k.by_outlet[d]?.fill_rate;
-  const color = (f: number | undefined) => (f === undefined ? "#94a3b8" : f >= 0.95 ? "#16a34a" : f >= 0.8 ? "#f59e0b" : "#e11d48");
   const fullyServed = O.filter((o) => (fill(o.outlet_id) ?? 0) >= 0.999).length;
   const isFull = !run.network;
   const diff = fullRun && !isFull ? (k.fill_rate - (fullRun.optimizer?.kpis.fill_rate ?? 0)) * 100 : null;
@@ -206,42 +198,8 @@ function Result({ run, fullRun, routes }: { run: Run; fullRun: Run | null; route
       </div>
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2" bodyClass="p-0">
-          <div className="h-[460px] overflow-hidden rounded-2xl">
-            <MapContainer center={[19.3, 76.2]} zoom={6.4} zoomSnap={0.2} style={{ height: "100%", width: "100%" }} scrollWheelZoom>
-              <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              {closed.map((r) => {
-                const a = pos(r.warehouse_id), b = pos(r.outlet_id);
-                return a && b ? (
-                  <Polyline key={`c${r.route_id}`} positions={[a, b]} pathOptions={{ color: "#e11d48", weight: 1.5, opacity: 0.5, dashArray: "4 6" }}>
-                    <LTooltip sticky>Closed road: {whName(r.warehouse_id)} → {r.outlet_id}</LTooltip>
-                  </Polyline>
-                ) : null;
-              })}
-              {Object.values(flows).map((f) => {
-                const a = pos(f.w), b = pos(f.d);
-                return a && b ? (
-                  <Polyline key={`f${f.w}${f.d}`} positions={[a, b]} pathOptions={{ color: "#2563eb", weight: 1.5 + 6 * (f.qty / maxQty), opacity: 0.6 }}>
-                    <LTooltip sticky>{whName(f.w)} → {f.d}: {fmtInt(f.qty)} units</LTooltip>
-                  </Polyline>
-                ) : null;
-              })}
-              {O.map((o) => (
-                <CircleMarker key={o.outlet_id} center={[o.lat, o.lon]} radius={8} pathOptions={{ color: "#fff", weight: 2, fillColor: color(fill(o.outlet_id)), fillOpacity: 1 }}>
-                  <LTooltip>{o.name}: {fmtPct(fill(o.outlet_id), 0)} supplied</LTooltip>
-                </CircleMarker>
-              ))}
-              {W.map((w) => (
-                <CircleMarker key={w.warehouse_id} center={[w.lat, w.lon]} radius={11} pathOptions={{ color: "#0f172a", weight: 3, fillColor: "#0f172a", fillOpacity: 1 }}>
-                  <LTooltip permanent direction="right" offset={[10, 0]}>{w.warehouse_id}</LTooltip>
-                </CircleMarker>
-              ))}
-            </MapContainer>
-          </div>
-          <div className="flex flex-wrap gap-4 px-5 py-3 text-xs text-slate-600">
-            <span><span className="mr-1 inline-block h-0.5 w-5 bg-primary-500 align-middle" />delivery (thicker = more)</span>
-            <span><span className="mr-1 inline-block w-5 border-t-2 border-dashed border-rose-500 align-middle" />closed road</span>
-            <span>● green = full · amber = most · red = short</span>
-          </div>
+          <NetworkMap warehouses={W} outlets={O} flows={Object.values(flows)} closedRoads={closedRoadsFor(run, routes)}
+            fillByOutlet={Object.fromEntries(O.map((o) => [o.outlet_id, fill(o.outlet_id)]))} height={460} />
         </Card>
         <Card title="Each store" bodyClass="max-h-[520px] overflow-y-auto">
           <ul className="space-y-3">

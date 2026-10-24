@@ -1,5 +1,5 @@
 import type {
-  NetworkEdit, Route,
+  ChatReply, ChatTurn, LiveWeather, NetworkEdit, Route,
   Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
   ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
 } from "../types/api";
@@ -72,5 +72,10 @@ export const api = {
   override: (id: string, body: { batch_id: string; outlet_id: string; new_qty: number; reason: string; actor?: string }) =>
     request<Run>(`/api/optimization/${id}/override`, { method: "POST", body: JSON.stringify(body) }),
   evaluation: (m: string) => request<Evaluation>(`/api/evaluation?module=${m}`),
+  liveWeather: (m: string, contested = true, threshold?: number) =>
+    request<LiveWeather>(`/api/live/weather?${q({ module: m, contested_pattern: contested, threshold_mm: threshold?.toString() })}`),
+  chat: (module: string, messages: ChatTurn[], planId?: string | null) =>
+    request<ChatReply>("/api/assistant/chat", { method: "POST", body: JSON.stringify({ module, plan_id: planId ?? null, messages }) }),
+  assistantStatus: () => request<{ engine: "claude" | "built-in"; suggestions: string[] }>("/api/assistant/status"),
   exportUrl: (id: string, plan: "optimizer" | "baseline" = "optimizer") => `${BASE}/api/optimization/${id}/export.csv?plan=${plan}`,
 };
