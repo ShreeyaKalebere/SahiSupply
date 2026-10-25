@@ -29,3 +29,6 @@ Thumbs.db
 
 # Local Claude Code tooling
 .claude/
+
+# Generated QR test sheets (signed by the local server secret)
+qr-test-sheet/

@@ -7,7 +7,7 @@ def test_counts_match_prd(datasets):
         assert len(d["outlets"]) == 12
         assert len(d["products"]) == 15
         assert len(d["routes"]) == 60
-        assert 120 <= len(d["batches"]) <= 150, len(d["batches"])
+        assert 150 <= len(d["batches"]) <= 230, len(d["batches"])
         assert len(d["demand_history"]) == 12 * 15 * 180 == 32400
         assert len({o["region"] for o in d["outlets"]}) == 3
         assert len(d["open_orders"]) == (180 if m == "grocery" else 0)
@@ -36,7 +36,7 @@ def test_references_are_valid(datasets):
         assert all(h["qty"] >= 0 for h in d["demand_history"])
         # each product at 3 of 5 warehouses
         for p in pids:
-            assert len({b["warehouse_id"] for b in d["batches"] if b["product_id"] == p}) == 3
+            assert len({b["warehouse_id"] for b in d["batches"] if b["product_id"] == p}) == 5
 
 
 def test_lead_time_follows_distance_rule(datasets):

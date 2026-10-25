@@ -111,3 +111,14 @@
 .qr-laser { position: absolute; left: 6%; right: 6%; height: 2px; background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: qr-laser 1.6s ease-in-out infinite alternate; }
 @keyframes qr-laser { from { top: 8%; } to { top: 92%; } }
 @media (prefers-reduced-motion: reduce) { .qr-laser { animation: none; top: 50%; } }
+
+/* Route planner: lettered stops (A, B, C...) and leg labels with a direction arrow */
+.route-stop-icon, .route-leg-icon { background: transparent; border: 0; }
+.route-stop { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9999px; background: #2563eb; color: #fff;
+  font: 700 13px/1 Inter, sans-serif; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.45); cursor: pointer; }
+.route-stop-w { background: #0f172a; border-radius: 8px; }
+.route-stop-urgent { background: #e11d48; }
+.route-leg { position: absolute; transform: translate(-50%, -50%); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;
+  border-radius: 9999px; background: rgba(255, 255, 255, 0.95); padding: 1px 7px 1px 4px; font: 600 11px/1.4 Inter, sans-serif; color: #0f172a;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.3); }
+.route-arrow { display: inline-block; color: #16a34a; font-size: 13px; }

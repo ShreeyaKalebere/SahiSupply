@@ -13,11 +13,11 @@ type LatLng = [number, number];
 const storeColor = (f: number | undefined) => (f === undefined ? "#94a3b8" : f >= 0.95 ? "#16a34a" : f >= 0.8 ? "#f59e0b" : "#e11d48");
 
 const ARC_LIFT = 0.22;     // how far the arc bows away from the straight line, as a share of its length
-const ARC_SEGMENTS = 14;   // pieces per arc, each with its own opacity, so the line fades towards both ends
+export const ARC_SEGMENTS = 14;   // pieces per arc, each with its own opacity, so the line fades towards both ends
 const TRUCK_PX = 18; // about the size of a map dot
 
 /** Control point of a quadratic arc from a to b, bowed to the side that points "up" (north) on the map. */
-function arcControl(a: LatLng, b: LatLng): LatLng {
+export function arcControl(a: LatLng, b: LatLng): LatLng {
   const mid: LatLng = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   const dLat = b[0] - a[0], dLon = b[1] - a[1];
   let nLat = dLon, nLon = -dLat; // perpendicular
@@ -25,12 +25,12 @@ function arcControl(a: LatLng, b: LatLng): LatLng {
   return [mid[0] + nLat * ARC_LIFT, mid[1] + nLon * ARC_LIFT];
 }
 
-function arcPoint(a: LatLng, c: LatLng, b: LatLng, t: number): LatLng {
+export function arcPoint(a: LatLng, c: LatLng, b: LatLng, t: number): LatLng {
   const u = 1 - t;
   return [u * u * a[0] + 2 * u * t * c[0] + t * t * b[0], u * u * a[1] + 2 * u * t * c[1] + t * t * b[1]];
 }
 
-function arcPath(a: LatLng, b: LatLng, n = 32): LatLng[] {
+export function arcPath(a: LatLng, b: LatLng, n = 32): LatLng[] {
   const c = arcControl(a, b);
   return Array.from({ length: n + 1 }, (_, i) => arcPoint(a, c, b, i / n));
 }
@@ -41,7 +41,7 @@ function arcPath(a: LatLng, b: LatLng, n = 32): LatLng[] {
  * (no image swaps, no fading), and markers move every animation frame outside React. Falls back to
  * dots if the model cannot load; no motion when the user prefers reduced motion.
  */
-function TruckLayer({ lanes, selected }: { lanes: { id: string; a: LatLng; b: LatLng; qty: number }[]; selected: string[] }) {
+export function TruckLayer({ lanes, selected }: { lanes: { id: string; a: LatLng; b: LatLng; qty: number }[]; selected: string[] }) {
   const map = useMap();
   const [sheet, setSheet] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);

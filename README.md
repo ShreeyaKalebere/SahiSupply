@@ -308,6 +308,23 @@ Docker files (`Dockerfile`, `docker-compose.yml`) are provided; Atlas works by s
   optimizer to ship them first; waste avoided, value recovered, before/after KPIs, per-batch actions (dispatch,
   reallocate, transfer suggestion, write-off review); **Execute Rescue Plan** adopts it. Expired stock is never shipped.
 
+### Route planner
+* **Order stock - the system finds the path**: pick a store, product and quantity (e.g. 100 units). SahiSupply works
+  out usable stock in every warehouse (stock minus this week's plan, filtered by the plan's shelf-life, storage and
+  road rules), splits the order with a small OR-Tools model per mode (cheapest / meets the deadline / fastest), builds
+  the path (one truck collecting from each warehouse vs separate trucks in parallel), reports any shortfall with the
+  reason (no stock, store space or cold space full, too late), and re-verifies the new lines with the checker.
+  Recalculates automatically as the order changes. Option: plan the order on top of this week's plan or on its own.
+* **Connect** warehouses and stores on the map in visiting order (A → B → C → D); reorder, remove or mark stops urgent.
+* Modes: **Time doesn't matter** (planned cost, then distance), **Time matters** (preferred or mandatory deadline),
+  **Emergency** (urgent stops first).
+* Per option: distance, driving time, loading/unloading time, total time, arrival, planned cost and units, deadline
+  feasibility; options compared side by side: as connected, **OR-Tools optimized stop order**, urgent-first, direct.
+* Missed deadlines are explained (time needed vs available) with alternatives (latest dispatch, skip stops, other
+  warehouses with the stock); an impossible delivery is never recommended. Trip lines are re-verified by the checker.
+* **No road-routing data**: distances are straight-line × 1.3 estimates, speed and handling times are stated
+  assumptions, and no traffic is modelled.
+
 ### QR batch traceability
 * Every batch gets a **signed QR code** (`SAHI1|module|batch|HMAC`) linked to its product, warehouse, quantity, expiry
   and planned destination; printable labels on the **QR traceability** page.
@@ -499,6 +516,7 @@ All responses use `{ "data": ..., "meta": { "synthetic_data": true, ... } }`; er
 | Forecast | `POST /api/forecast/train` · `POST /api/forecast/predict` · `GET /api/forecast/metrics` · `GET /api/evaluation` |
 | Live data | `GET /api/live/weather` |
 | Planning | `POST /api/optimization/run` · `GET /api/optimization/history` · `GET /api/optimization/{plan_id}` · `/explanations` · `/insights` · `POST /override` · `GET /overrides` · `GET /export.csv` · `POST /api/scenarios/run` |
+| Route planner | `POST /api/routes/plan` (connect stops) · `POST /api/routes/source` (order stock, system finds warehouses and path) |
 | Traceability | `GET /api/trace/labels` · `POST /api/trace/resolve` · `POST /api/trace/scan` · `GET /api/trace/events` |
 | Deliveries | `GET /api/optimization/{plan_id}/deliveries` · `POST .../deliveries/{shipment_id}/status` (`status`, optional `proof_photo`, `note`) · `GET .../deliveries/{shipment_id}/proof` |
 | Simulations | `GET /api/chaos/kinds` · `POST /api/chaos/run` · `POST /api/rescue/run` |
@@ -524,7 +542,18 @@ npm --prefix frontend test
 cd backend && python -m scripts.benchmark
 ```
 
-Last recorded results (2026-10-24, before delivery tracking, Chaos Mode, Expiry Rescue and the mobile app were added):
+**Dataset change (2026-10-25):** warehouse stock was increased so every warehouse holds every product (3-4 weeks of
+network demand instead of 1.35-1.75 weeks in 3 of 5 warehouses). With more stock, shortages now come mainly from store
+space, shelf-life rules and closed roads, and the gap to manual planning is smaller. Normal-week plans after the change:
+
+| Module | Optimizer fill | Manual (greedy) fill | Units short (optimizer vs manual) |
+|---|---|---|---|
+| Pharmacy | 89.9% | 88.4% | 1,312 vs 1,508 |
+| Grocery | 93.1% | 91.3% | 1,242 vs 1,558 |
+| Cosmetics | 94.5% | 91.7% | 703 vs 1,072 |
+
+All 104 backend tests and 16 frontend tests pass on the new data. The table below is from the earlier, scarcer dataset
+(2026-10-24) and is kept for reference:
 
 | Check | Result |
 |---|---|

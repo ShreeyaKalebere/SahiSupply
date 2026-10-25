@@ -597,3 +597,48 @@ export interface TraceScanResult {
   progress: { scanned: number; total: number; missing: string[] } | null;
   status_before: DeliveryStatus | null; status_after: DeliveryStatus | null; notice: string;
 }
+
+// ---- Route planner ----
+export type RouteMode = "flexible" | "deadline" | "emergency";
+export interface RouteLeg {
+  from: string; to: string; from_name: string; to_name: string; distance_km: number; drive_min: number; bearing_deg: number;
+  direction: string; basis: string; route_id: string | null; open: boolean | null; blocked: string | null; lead_time_days: number | null;
+}
+export interface RouteStopTime {
+  stop: string; letter: string; name: string; kind: "warehouse" | "store"; city: string | null; arrive_at: string; handling_min: number;
+  depart_at: string; units: number; urgent: boolean; warning: string | null;
+}
+export interface RouteCandidate {
+  label: string; kind: "connected" | "optimized" | "urgent_first" | "direct"; order: string[]; legs: RouteLeg[]; timeline: RouteStopTime[];
+  distance_km: number; drive_min: number; handling_min: number; total_min: number; eta: string; cost: number | null; units: number;
+  blocked: string[]; feasible_route: boolean; recommended: boolean; urgent_reached_min: number | null; shipments: string[];
+  deadline: { deadline_at: string; arrival_at: string; slack_min: number; met: boolean; type: string } | null;
+  served_lines: { batch_id: string; product_name: string; warehouse_id: string; outlet_id: string; qty: number; line_cost: number }[];
+}
+export interface RoutePlanResult {
+  mode: RouteMode; candidates: RouteCandidate[]; recommended: string | null; plan_id: string | null;
+  stops: { id: string; kind: string; name: string; lat: number; lon: number; urgent: boolean }[];
+  advice: { level: "ok" | "info" | "warning" | "flag"; text: string }[];
+  check: { valid: boolean; lines_checked: number; violations: { code: string; message: string }[] } | null;
+  assumptions: { speed_kmh: number; load_min: number; unload_min: number; per_unit_min: number; dispatch_at: string };
+  data_notes: string[];
+}
+
+// ---- Stock-aware sourcing (system finds warehouses + path) ----
+export interface ProductInfo { product_id: string; name: string; category?: string; storage_class: string; criticality: string; unit_volume_l: number }
+export interface SourceWarehouse {
+  warehouse_id: string; name: string; status: string; total_units: number; committed_units: number; free_units: number;
+  eligible_units: number; blocked: Record<string, number>; distance_km: number; direct_min: number; arrival_at: string;
+  road_open: boolean | null; unit_cost: number | null; allocated: number; outbound_left_l: number; road_left_l: number;
+}
+export interface SourceResult {
+  mode: RouteMode; plan_id: string; outlet: { id: string; name: string; city: string | null };
+  product: { id: string; name: string; storage_class: string; unit_volume_l: number };
+  requested: number; fulfilled: number; shortfall: number; on_top_of_plan: boolean;
+  warehouses: SourceWarehouse[];
+  allocation: { batch_id: string; warehouse_id: string; qty: number; expiry_date: string; life_on_arrival_days: number; unit_cost: number; line_cost: number }[];
+  options: (RouteCandidate & { trips?: string[][] })[]; recommended: string | null;
+  advice: RoutePlanResult["advice"]; check: RoutePlanResult["check"];
+  store_capacity: { receiving_left_l: number; cold_left_l: number | null };
+  assumptions: RoutePlanResult["assumptions"]; data_notes: string[];
+}

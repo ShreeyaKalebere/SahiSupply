@@ -60,6 +60,43 @@ class SimulationRequest(RunRequest):
     chaos: ChaosRequest | None = None
 
 
+class RouteStop(_Req):
+    id: str = Field(pattern=r"^[WD]\d{1,4}$")
+    urgent: bool = False
+
+
+class RoutePlanRequest(_Req):
+    module: str = ModuleId
+    contested_pattern: bool = True
+    plan_id: str | None = Field(default=None, pattern=r"^PLN-[A-Z0-9]{6,20}$")
+    stops: list[RouteStop] = Field(min_length=2, max_length=10)
+    mode: Literal["flexible", "deadline", "emergency"] = "flexible"
+    dispatch_at: str | None = Field(default=None, max_length=40)
+    deadline_at: str | None = Field(default=None, max_length=40)
+    deadline_type: Literal["preferred", "mandatory"] = "mandatory"
+    speed_kmh: float = Field(default=40.0, ge=5, le=120)
+    load_min: float = Field(default=30.0, ge=0, le=600)
+    unload_min: float = Field(default=20.0, ge=0, le=600)
+    per_unit_min: float = Field(default=0.02, ge=0, le=5)
+
+
+class SourceRequest(_Req):
+    module: str = ModuleId
+    plan_id: str = Field(pattern=r"^PLN-[A-Z0-9]{6,20}$")
+    outlet_id: str = Field(pattern=r"^D\d{1,4}$")
+    product_id: str = Field(pattern=r"^[A-Z0-9_-]{1,20}$")
+    quantity: int = Field(ge=1, le=1_000_000)
+    on_top_of_plan: bool = True
+    mode: Literal["flexible", "deadline", "emergency"] = "flexible"
+    dispatch_at: str | None = Field(default=None, max_length=40)
+    deadline_at: str | None = Field(default=None, max_length=40)
+    deadline_type: Literal["preferred", "mandatory"] = "mandatory"
+    speed_kmh: float = Field(default=40.0, ge=5, le=120)
+    load_min: float = Field(default=30.0, ge=0, le=600)
+    unload_min: float = Field(default=20.0, ge=0, le=600)
+    per_unit_min: float = Field(default=0.02, ge=0, le=5)
+
+
 class TraceResolveRequest(_Req):
     code: str = Field(min_length=1, max_length=200)
     plan_id: str | None = Field(default=None, pattern=r"^PLN-[A-Z0-9]{6,20}$")

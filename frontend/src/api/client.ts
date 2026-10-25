@@ -1,5 +1,5 @@
 import type {
-  ChaosParams, ChaosResult, ChatReply, ChatTurn, DeliveryStatus, RescueResult, TraceEvent, TraceLabel, TraceRecord, TraceScanResult, LiveWeather, Shipment, NetworkEdit, Route, WarehouseDetails,
+  ChaosParams, ChaosResult, ProductInfo, RouteMode, RoutePlanResult, SourceResult, ChatReply, ChatTurn, DeliveryStatus, RescueResult, TraceEvent, TraceLabel, TraceRecord, TraceScanResult, LiveWeather, Shipment, NetworkEdit, Route, WarehouseDetails,
   Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
   ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
 } from "../types/api";
@@ -115,6 +115,15 @@ export const api = {
     request<TraceScanResult>("/api/trace/scan", { method: "POST", body: JSON.stringify(b) }),
   traceEvents: (p: { plan_id?: string | null; batch_id?: string | null; shipment_id?: string | null; limit?: number }) =>
     request<TraceEvent[]>(`/api/trace/events?${q({ plan_id: p.plan_id, batch_id: p.batch_id, shipment_id: p.shipment_id, limit: p.limit?.toString() })}`),
+  planRoute: (b: { module: string; plan_id?: string | null; contested_pattern?: boolean; stops: { id: string; urgent?: boolean }[]; mode: RouteMode;
+    dispatch_at?: string; deadline_at?: string | null; deadline_type?: "preferred" | "mandatory"; speed_kmh?: number; load_min?: number;
+    unload_min?: number; per_unit_min?: number }) =>
+    request<RoutePlanResult>("/api/routes/plan", { method: "POST", body: JSON.stringify(b) }),
+  products: (m: string) => request<ProductInfo[]>(`/api/products?module=${m}`),
+  sourceOrder: (b: { module: string; plan_id: string; outlet_id: string; product_id: string; quantity: number; on_top_of_plan: boolean;
+    mode: RouteMode; dispatch_at?: string; deadline_at?: string | null; deadline_type?: "preferred" | "mandatory"; speed_kmh?: number;
+    load_min?: number; unload_min?: number }) =>
+    request<SourceResult>("/api/routes/source", { method: "POST", body: JSON.stringify(b) }),
   evaluation: (m: string) => request<Evaluation>(`/api/evaluation?module=${m}`),
   liveWeather: (m: string, contested = true, threshold?: number) =>
     request<LiveWeather>(`/api/live/weather?${q({ module: m, contested_pattern: contested, threshold_mm: threshold?.toString() })}`),

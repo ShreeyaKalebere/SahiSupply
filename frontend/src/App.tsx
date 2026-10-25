@@ -18,6 +18,7 @@ import MobileApp from "./mobile/MobileApp";
 import RescuePage from "./pages/RescuePage";
 import ScenariosPage from "./pages/ScenariosPage";
 import TracePage from "./pages/TracePage";
+import RoutePlannerPage from "./pages/RoutePlannerPage";
 
 export default function App() {
   return (
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="map" element={<MapPage />} />
           <Route path="rescue" element={<RescuePage />} />
           <Route path="trace" element={<TracePage />} />
+          <Route path="routes" element={<RoutePlannerPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="export" element={<ExportPage />} />

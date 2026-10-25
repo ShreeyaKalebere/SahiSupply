@@ -10,7 +10,7 @@
 | Warehouses | 5 | Real Maharashtra city coordinates (Bhiwandi, Pune, Nashik, Chh. Sambhajinagar, Nagpur); outbound capacity in litres; cold-storage flag |
 | Outlets | 12 | 3 regions (Mumbai Metro, Western Maharashtra, Vidarbha-Marathwada); receiving and cold capacity (0 at some); storage capabilities |
 | Products | 15 | Volume, storage class, shelf life, unit cost / price / gross margin. Pharmacy: 5 critical, 4 at 2-8 °C |
-| Batches | ~135 | Each product at 3 of 5 warehouses (always incl. hub W2), 2-4 batches each, staggered expiry (~20% short-dated) |
+| Batches | ~190 | Every product at all 5 warehouses (hub W2 holds the largest share), 3-4 weeks of network demand in total, 2-3 batches per warehouse, staggered expiry (~20% short-dated) |
 | Routes | 60 | Every warehouse x outlet. Distance = haversine x 1.3 (**straight line, not a road route**); lead time = 1 + floor(km / 350) days; cost per litre = 0.8 + 0.006 x km; capacity in litres; open flag |
 | Demand history | 32,400 | 12 outlets x 15 products x 180 days |
 | Open orders | 180 | Grocery only: one week drawn from the same demand model (x U(0.95, 1.15)) |

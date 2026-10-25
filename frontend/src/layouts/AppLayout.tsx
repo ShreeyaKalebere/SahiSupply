@@ -1,6 +1,6 @@
 import {
   Boxes, CalendarDays, Network, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
-  Play, QrCode, Settings2, Truck, Recycle, TrendingUp, } from "lucide-react";
+  Play, QrCode, Settings2, Truck, Recycle, TrendingUp, Waypoints, } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { ChatWidget } from "../components/ChatWidget";
@@ -25,6 +25,7 @@ const MAIN = [
 const MORE = [
   { to: "/comparison", label: "vs. Manual planning", icon: GitCompareArrows },
   { to: "/map", label: "Map", icon: Map },
+  { to: "/routes", label: "Route planner", icon: Waypoints },
   { to: "/history", label: "Past plans", icon: History },
   { to: "/export", label: "Download plan", icon: Download },
   { to: "/config", label: "Rules & settings", icon: Settings2 },
