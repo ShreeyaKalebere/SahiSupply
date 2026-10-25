@@ -123,13 +123,26 @@ def optimization_deliveries(plan_id: str):
 def optimization_delivery_status(plan_id: str, req: DeliveryStatusRequest,
                                  shipment_id: str = Path(pattern=r"^SHP-[A-Za-z0-9_]{1,30}-[A-Za-z0-9_]{1,30}$")):
     run = _approved(plan_id)
+    if req.proof_photo and req.status != "delivered":
+        raise ApiError(422, "PROOF_NOT_ALLOWED", "A proof photo can only be attached when confirming delivery")
     try:
-        row, persisted = delivery_status.advance(run, shipment_id, req.status)
+        row, persisted = delivery_status.advance(run, shipment_id, req.status, note=req.note, has_proof=bool(req.proof_photo))
     except delivery_status.UnknownShipment:
         raise ApiError(404, "UNKNOWN_SHIPMENT", f"Shipment {shipment_id} is not in plan {plan_id}") from None
     except delivery_status.InvalidTransition as exc:
         raise ApiError(409, "INVALID_TRANSITION", str(exc), {"current": exc.current, "allowed": exc.allowed}) from None
+    if req.proof_photo:
+        persisted = delivery_status.save_proof(plan_id, shipment_id, req.proof_photo, req.note) and persisted
     return ok(row, persisted=persisted)
+
+
+@router.get("/optimization/{plan_id}/deliveries/{shipment_id}/proof")
+def optimization_delivery_proof(plan_id: str, shipment_id: str = Path(pattern=r"^SHP-[A-Za-z0-9_]{1,30}-[A-Za-z0-9_]{1,30}$")):
+    _get(plan_id)
+    proof = delivery_status.get_proof(plan_id, shipment_id)
+    if proof is None:
+        raise ApiError(404, "NO_PROOF", f"No proof of delivery for {shipment_id}")
+    return ok(proof)
 
 
 @router.get("/optimization/{plan_id}/export.csv")

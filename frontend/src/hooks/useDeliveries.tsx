@@ -11,7 +11,7 @@ interface DeliveriesState {
   reload: () => void;
   pending: Record<string, boolean>;
   actionError: { shipmentId: string; error: ApiError } | null;
-  advance: (shipmentIds: string[], status: DeliveryStatus) => Promise<void>;
+  advance: (shipmentIds: string[], status: DeliveryStatus, proof?: { photo: string; note?: string }) => Promise<boolean>;
   clearActionError: () => void;
 }
 
@@ -42,24 +42,27 @@ export function DeliveriesProvider({ children }: { children: ReactNode }) {
     return () => { live = false; };
   }, [planId, tick]);
 
-  const advance = useCallback(async (ids: string[], status: DeliveryStatus) => {
-    if (!planId) return;
+  const advance = useCallback(async (ids: string[], status: DeliveryStatus, proof?: { photo: string; note?: string }) => {
+    if (!planId) return false;
+    let ok = true;
     setActionError(null);
     setPending((p) => ({ ...p, ...Object.fromEntries(ids.map((id) => [id, true])) }));
     for (const id of ids) {
       try {
-        const r = await api.setDeliveryStatus(planId, id, status);
+        const r = await api.setDeliveryStatus(planId, id, status, proof);
         setById((p) => ({ ...p, [id]: r.data }));
       } catch (e) {
         const err = e instanceof ApiError ? e : new ApiError(0, "ERROR", String(e));
         setActionError({ shipmentId: id, error: err });
         // Someone else may have moved it: resync from the server.
         if (err.code === "INVALID_TRANSITION") setTick((t) => t + 1);
+        ok = false;
         break;
       } finally {
         setPending((p) => ({ ...p, [id]: false }));
       }
     }
+    return ok;
   }, [planId]);
 
   const value = useMemo<DeliveriesState>(() => ({

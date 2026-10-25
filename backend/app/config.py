@@ -49,7 +49,7 @@ def get_settings() -> Settings:
         mongodb_db=os.getenv("MONGODB_DB", default_db),
         mongodb_timeout_ms=int(os.getenv("MONGODB_TIMEOUT_MS", "2000")),
         cors_origins=[o.strip() for o in os.getenv(
-            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()],
+            "CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost,https://localhost,capacitor://localhost").split(",") if o.strip()],
         solver_time_limit_s=float(os.getenv("SOLVER_TIME_LIMIT_S", "10")),
         data_seed=int(os.getenv("DATA_SEED", "42")),
         configs_dir=Path(os.getenv("CONFIGS_DIR", str(REPO_ROOT / "configs"))),

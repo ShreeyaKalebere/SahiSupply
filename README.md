@@ -230,3 +230,20 @@ the header (or "How it works" in the sidebar) for a 3-step explanation and a glo
 | "Cannot reach the SahiSupply API" | Start the backend on port 8000 (the Vite proxy targets it) |
 | First run is slow | Forecasters train once per module (~1-4 s) at startup, then are cached |
 | Atlas connection timeout | Allow your IP in Atlas Network Access; raise `MONGODB_TIMEOUT_MS` |
+
+## Mobile field app (Android, Capacitor)
+
+The same React code ships as an Android app (`frontend/android`, Capacitor 6). It opens on the field screens (`/m`, also usable in a phone browser):
+
+- **Driver**: pick your depot, see this week's trips on a map, step them through Dispatch → In Transit → **Confirm Delivery** (a photo is required and stored in MongoDB `delivery_proofs`) → Complete. Tapping a trip highlights its truck and route in green.
+- **Warehouse**: expiry, blocked-batch and stock-out alerts for one warehouse, from the live database.
+- **Settings**: the address of the computer running the backend (the phone must be on the same network).
+
+Build and install:
+
+```bash
+cd frontend && npm run build && npx cap sync android
+cd android && ./gradlew assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
+```
+
+Run the backend so phones can reach it (`--host 0.0.0.0`, allow port 8000 in the firewall), then enter `http://<this-PC-IP>:8000` in the app's Settings. Requires JDK 17 and the Android SDK.

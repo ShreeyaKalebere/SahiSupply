@@ -141,7 +141,7 @@ export interface Shipment {
   products: number;
   status: DeliveryStatus;
   updated_at: string | null;
-  history: { status: DeliveryStatus; at: string }[];
+  history: { status: DeliveryStatus; at: string; note?: string; proof?: boolean }[];
 }
 
 export interface AllocationRow {

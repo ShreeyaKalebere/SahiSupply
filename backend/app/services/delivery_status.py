@@ -83,14 +83,14 @@ def list_for_run(run: dict) -> tuple[list[dict], bool]:
     return rows, persisted
 
 
-def advance(run: dict, sid: str, status: str) -> tuple[dict, bool]:
+def advance(run: dict, sid: str, status: str, *, note: str | None = None, has_proof: bool = False) -> tuple[dict, bool]:
     """Move one shipment to `status`, which must be the next status in order."""
     plan_id = run["plan_id"]
     ship = shipments(run).get(sid)
     if ship is None:
         raise UnknownShipment(sid)
     now = datetime.now(timezone.utc).isoformat()
-    event = {"status": status, "at": now}
+    event = {"status": status, "at": now, **({"note": note} if note else {}), **({"proof": True} if has_proof else {})}
     ok, _ = ping()
     if ok:
         try:
@@ -122,3 +122,35 @@ def advance(run: dict, sid: str, status: str) -> tuple[dict, bool]:
                "history": (cur["history"] if cur else []) + [event]}
         _memory[(plan_id, sid)] = doc
     return {**ship, "status": status, "updated_at": now, "history": doc["history"]}, False
+
+
+_mem_proofs: dict[tuple[str, str], dict] = {}
+
+
+def save_proof(plan_id: str, sid: str, photo: str, note: str | None) -> bool:
+    """Proof-of-delivery photo (JPEG/PNG data URL), kept apart from the small status documents."""
+    doc = {"plan_id": plan_id, "shipment_id": sid, "photo": photo, "note": note,
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    ok, _ = ping()
+    if ok:
+        try:
+            get_db().delivery_proofs.replace_one({"plan_id": plan_id, "shipment_id": sid}, doc, upsert=True)
+            return True
+        except PyMongoError as exc:
+            log.error("failed to persist delivery proof %s/%s: %s", plan_id, sid, exc)
+    with _lock:
+        _mem_proofs[(plan_id, sid)] = doc
+    return False
+
+
+def get_proof(plan_id: str, sid: str) -> dict | None:
+    with _lock:
+        if (plan_id, sid) in _mem_proofs:
+            return _mem_proofs[(plan_id, sid)]
+    ok, _ = ping()
+    if ok:
+        try:
+            return get_db().delivery_proofs.find_one({"plan_id": plan_id, "shipment_id": sid}, {"_id": 0})
+        except PyMongoError:
+            return None
+    return None

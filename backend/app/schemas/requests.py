@@ -62,6 +62,10 @@ class SimulationRequest(RunRequest):
 
 class DeliveryStatusRequest(_Req):
     status: Literal["dispatched", "in_transit", "delivered", "complete"]
+    # Proof of delivery (driver app): a compressed photo as a data URL, only with status "delivered".
+    proof_photo: str | None = Field(default=None, max_length=3_000_000,
+                                    pattern=r"^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")
+    note: str | None = Field(default=None, max_length=300)
 
 
 class ChatMessage(_Req):

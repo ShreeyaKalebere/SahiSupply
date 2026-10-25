@@ -1,5 +1,6 @@
 import { DeliveriesProvider } from "./hooks/useDeliveries";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { isNativeApp } from "./api/client";
 import { PlannerProvider } from "./hooks/usePlanner";
 import { AppLayout } from "./layouts/AppLayout";
 import ComparisonPage from "./pages/ComparisonPage";
@@ -13,6 +14,7 @@ import MapPage from "./pages/MapPage";
 import NetworkPage from "./pages/NetworkPage";
 import OverviewPage from "./pages/OverviewPage";
 import PlannerPage from "./pages/PlannerPage";
+import MobileApp from "./mobile/MobileApp";
 import RescuePage from "./pages/RescuePage";
 import ScenariosPage from "./pages/ScenariosPage";
 
@@ -21,8 +23,10 @@ export default function App() {
     <PlannerProvider>
       <DeliveriesProvider>
       <Routes>
+        <Route path="m/*" element={<MobileApp />} />
         <Route element={<AppLayout />}>
-          <Route index element={<OverviewPage />} />
+          {/* The Android app opens on the field (mobile) screens; the full dashboard stays reachable. */}
+          <Route index element={isNativeApp() ? <Navigate to="/m" replace /> : <OverviewPage />} />
           <Route path="planner" element={<PlannerPage />} />
           <Route path="network" element={<NetworkPage />} />
           <Route path="comparison" element={<ComparisonPage />} />

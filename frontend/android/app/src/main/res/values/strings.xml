@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SahiSupply</string>
+    <string name="title_activity_main">SahiSupply</string>
+    <string name="package_name">in.sahisupply.field</string>
+    <string name="custom_url_scheme">in.sahisupply.field</string>
+</resources>
