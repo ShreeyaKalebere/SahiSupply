@@ -60,6 +60,20 @@ class SimulationRequest(RunRequest):
     chaos: ChaosRequest | None = None
 
 
+class TraceResolveRequest(_Req):
+    code: str = Field(min_length=1, max_length=200)
+    plan_id: str | None = Field(default=None, pattern=r"^PLN-[A-Z0-9]{6,20}$")
+
+
+class TraceScanRequest(_Req):
+    code: str = Field(min_length=1, max_length=200)
+    plan_id: str = Field(pattern=r"^PLN-[A-Z0-9]{6,20}$")
+    stage: Literal["dispatch", "delivery"]
+    shipment_id: str | None = Field(default=None, pattern=r"^SHP-[A-Za-z0-9_]{1,30}-[A-Za-z0-9_]{1,30}$")
+    actor: str | None = Field(default=None, max_length=80)
+    device: Literal["web", "app"] | None = None
+
+
 class DeliveryStatusRequest(_Req):
     status: Literal["dispatched", "in_transit", "delivered", "complete"]
     # Proof of delivery (driver app): a compressed photo as a data URL, only with status "delivered".

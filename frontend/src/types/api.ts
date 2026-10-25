@@ -576,3 +576,24 @@ export interface RescueResult {
     value_recovered: number; kpis_before: Kpis; kpis_after: Kpis;
   };
 }
+
+// ---- Batch QR traceability ----
+export interface TraceRecord {
+  module: string; batch_id: string; product_id: string; product_name: string; category?: string; storage_class?: string;
+  criticality?: string; warehouse_id: string; warehouse_name: string; quantity: number; expiry_date: string;
+  manufacturing_date?: string; days_to_expiry: number; expired: boolean; min_life_days: number;
+  planned_destinations: { outlet_id: string; outlet_name: string; qty: number; shipment_id: string }[];
+  plan_id: string | null; data_source: string;
+}
+export interface TraceLabel { payload: string; record: TraceRecord }
+export interface TraceFlag { code: string; level: "flag" | "warning"; message: string }
+export interface TraceEvent {
+  event_id: string; at: string; type: string; stage: "dispatch" | "delivery"; result: "ok" | "warning" | "flagged" | "invalid";
+  flags: TraceFlag[]; plan_id: string; module: string; batch_id: string | null; shipment_id: string | null;
+  actor: string | null; device: string | null; status_change: { from: string; to: string } | null;
+}
+export interface TraceScanResult {
+  result: TraceEvent["result"]; flags: TraceFlag[]; record: TraceRecord | null; event: TraceEvent;
+  progress: { scanned: number; total: number; missing: string[] } | null;
+  status_before: DeliveryStatus | null; status_after: DeliveryStatus | null; notice: string;
+}

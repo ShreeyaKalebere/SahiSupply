@@ -1,5 +1,5 @@
 import type {
-  ChaosParams, ChaosResult, ChatReply, ChatTurn, DeliveryStatus, RescueResult, LiveWeather, Shipment, NetworkEdit, Route, WarehouseDetails,
+  ChaosParams, ChaosResult, ChatReply, ChatTurn, DeliveryStatus, RescueResult, TraceEvent, TraceLabel, TraceRecord, TraceScanResult, LiveWeather, Shipment, NetworkEdit, Route, WarehouseDetails,
   Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
   ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
 } from "../types/api";
@@ -107,6 +107,14 @@ export const api = {
     request<ChaosResult>("/api/chaos/run", { method: "POST", body: JSON.stringify(p) }),
   rescueRun: (p: RunParams & { before_plan_id?: string | null }) =>
     request<RescueResult>("/api/rescue/run", { method: "POST", body: JSON.stringify(p) }),
+  traceLabels: (m: string, planId?: string | null, warehouseId?: string | null, shipmentId?: string | null) =>
+    request<TraceLabel[]>(`/api/trace/labels?${q({ module: m, plan_id: planId, warehouse_id: warehouseId, shipment_id: shipmentId })}`),
+  traceResolve: (code: string, planId?: string | null) =>
+    request<{ record: TraceRecord; events: TraceEvent[] }>("/api/trace/resolve", { method: "POST", body: JSON.stringify({ code, plan_id: planId ?? null }) }),
+  traceScan: (b: { code: string; plan_id: string; stage: "dispatch" | "delivery"; shipment_id?: string | null; actor?: string | null; device?: "web" | "app" }) =>
+    request<TraceScanResult>("/api/trace/scan", { method: "POST", body: JSON.stringify(b) }),
+  traceEvents: (p: { plan_id?: string | null; batch_id?: string | null; shipment_id?: string | null; limit?: number }) =>
+    request<TraceEvent[]>(`/api/trace/events?${q({ plan_id: p.plan_id, batch_id: p.batch_id, shipment_id: p.shipment_id, limit: p.limit?.toString() })}`),
   evaluation: (m: string) => request<Evaluation>(`/api/evaluation?module=${m}`),
   liveWeather: (m: string, contested = true, threshold?: number) =>
     request<LiveWeather>(`/api/live/weather?${q({ module: m, contested_pattern: contested, threshold_mm: threshold?.toString() })}`),

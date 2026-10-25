@@ -1,13 +1,15 @@
-import { AlertTriangle, Ban, Box, Clock, PackageX, RefreshCw, Snowflake } from "lucide-react";
+import { AlertTriangle, Ban, Box, Clock, PackageX, RefreshCw, ScanLine, Snowflake } from "lucide-react";
 import { Link } from "react-router-dom";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
+import { QrScanner } from "../components/trace/QrScanner";
+import { RecordSummary, RESULT_STYLE, TraceNotice } from "../components/trace/TraceParts";
 import { ErrorBox, Pill, ProgressBar, Spinner } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
 import { useNetwork } from "../hooks/useNetwork";
 import { usePlanner } from "../hooks/usePlanner";
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import type { WarehouseBatch, WarehouseDetails } from "../types/api";
-import { fmtDate, fmtInt, fmtPct } from "../utils/format";
+import type { TraceEvent, TraceRecord, WarehouseBatch, WarehouseDetails } from "../types/api";
+import { fmtDate, fmtDateTime, fmtInt, fmtPct } from "../utils/format";
 import { usePref } from "./mobileUtils";
 
 // three.js loads only when the 3D view is opened.
@@ -25,6 +27,19 @@ export default function WarehouseView() {
   const q = useAsync(() => (wid ? api.warehouseDetails(p.module, wid, contested, planId) : Promise.resolve({ data: null as WarehouseDetails | null, meta: {} })), [p.module, wid, contested, planId]);
   const det = q.data;
   const [view3d, setView3d] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [found, setFound] = useState<{ record: TraceRecord; events: TraceEvent[] } | null>(null);
+  const [scanErr, setScanErr] = useState<ApiError | null>(null);
+  const onCode = async (code: string) => {
+    setScanOpen(false);
+    setScanErr(null);
+    setFound(null);
+    try {
+      setFound((await api.traceResolve(code, planId)).data);
+    } catch (e) {
+      setScanErr(e instanceof ApiError ? e : new ApiError(0, "ERROR", String(e)));
+    }
+  };
 
   const expiring = (det?.expiring_batches ?? []).filter((b) => b.status === "expiring").sort((a, b) => a.days_to_expiry - b.days_to_expiry);
   const blocked = (det?.expiring_batches ?? []).filter((b) => b.status === "blocked");
@@ -85,6 +100,26 @@ export default function WarehouseView() {
               ))}
             </Section>
           )}
+          <section className="space-y-2 rounded-2xl bg-white p-3 shadow-card">
+            <button type="button" onClick={() => setScanOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary-500 py-2.5 text-sm font-bold text-primary-600">
+              <ScanLine size={17} aria-hidden />Scan a batch QR
+            </button>
+            {scanErr && <p role="alert" className="text-xs text-rose-600">{scanErr.message}</p>}
+            {found && (
+              <div className={`space-y-2 rounded-xl border-2 p-3 ${found.record.expired ? RESULT_STYLE.flagged.cls : RESULT_STYLE.ok.cls}`}>
+                <p className="text-sm font-bold">{found.record.expired ? "Expired batch - do not ship" : "Code verified for this system"}</p>
+                <RecordSummary r={found.record} />
+                {found.events.length > 0 && (
+                  <ul className="border-t border-black/10 pt-2 text-[11px]">
+                    {found.events.slice(0, 5).map((e) => <li key={e.event_id}>{fmtDateTime(e.at)} · {e.stage} · {e.result}{e.shipment_id ? ` · ${e.shipment_id}` : ""}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+            <TraceNotice compact />
+          </section>
+          {scanOpen && <QrScanner title="Scan a batch" hint="Look up its record and scan history" onCode={onCode} onClose={() => setScanOpen(false)} />}
           <button type="button" onClick={() => setView3d(true)}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 py-3 text-sm font-bold text-white">
             <Box size={17} aria-hidden />View 3D Warehouse

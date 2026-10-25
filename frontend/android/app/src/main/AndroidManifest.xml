@@ -39,4 +39,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Live QR scanning (camera preview in the WebView) -->
+    <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

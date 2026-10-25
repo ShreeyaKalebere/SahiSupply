@@ -1,12 +1,14 @@
-import { Camera, CheckCircle2, ChevronDown, ImageIcon, Loader2, MapPin, Package, X } from "lucide-react";
+import { Camera, CheckCircle2, ChevronDown, ImageIcon, Loader2, MapPin, Package, ScanLine, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api/client";
 import { NetworkMap } from "../components/NetworkMap";
+import { QrScanner } from "../components/trace/QrScanner";
+import { ScanResultCard, TraceNotice } from "../components/trace/TraceParts";
 import { ErrorBox, Notice, Pill, Spinner } from "../components/ui";
 import { useDeliveries } from "../hooks/useDeliveries";
 import { useNetwork } from "../hooks/useNetwork";
 import { usePlanner } from "../hooks/usePlanner";
-import type { Shipment } from "../types/api";
+import type { Shipment, TraceScanResult } from "../types/api";
 import { fmtDate, fmtInt } from "../utils/format";
 import { DELIVERY_ACTION, DELIVERY_ORDER, DELIVERY_TEXT } from "../utils/labels";
 import { compressPhoto, usePref } from "./mobileUtils";
@@ -88,6 +90,26 @@ function TripCard({ ship, storeName, city, open, onToggle }: { ship: Shipment; s
   const [photoErr, setPhotoErr] = useState<string | null>(null);
   const [proof, setProof] = useState<{ photo: string; note: string | null } | null>(null);
   const [proofErr, setProofErr] = useState<ApiError | null>(null);
+  const [scanStage, setScanStage] = useState<null | "dispatch" | "delivery">(null);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanRes, setScanRes] = useState<TraceScanResult | null>(null);
+  const [scanErr, setScanErr] = useState<ApiError | null>(null);
+  const qrStage = ship.status === "approved" ? "dispatch" : ship.status === "dispatched" || ship.status === "in_transit" ? "delivery" : null;
+  const onScan = async (code: string) => {
+    const stage = scanStage!;
+    setScanStage(null);
+    setScanBusy(true);
+    setScanErr(null);
+    try {
+      const r = (await api.traceScan({ code, plan_id: p.run!.plan_id, stage, shipment_id: ship.shipment_id, device: "app" })).data;
+      setScanRes(r);
+      if (r.event.status_change) d.reload();
+    } catch (e) {
+      setScanErr(e instanceof ApiError ? e : new ApiError(0, "ERROR", String(e)));
+    } finally {
+      setScanBusy(false);
+    }
+  };
   const busy = !!d.pending[ship.shipment_id];
   const action = DELIVERY_ACTION[ship.status];
   const needsPhoto = action?.to === "delivered";
@@ -173,6 +195,17 @@ function TripCard({ ship, storeName, city, open, onToggle }: { ship: Shipment; s
           </div>
         )}
 
+        {qrStage && (
+          <button type="button" disabled={scanBusy} onClick={() => { setScanRes(null); setScanStage(qrStage); }}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-primary-500 py-2.5 text-sm font-bold text-primary-600 disabled:opacity-50">
+            {scanBusy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ScanLine size={16} aria-hidden />}
+            Scan batch QR at {qrStage}
+          </button>
+        )}
+        {scanErr && <p role="alert" className="text-xs text-rose-600">{scanErr.message}</p>}
+        {scanRes && <ScanResultCard res={scanRes} />}
+        {scanRes && <TraceNotice compact />}
+        {scanStage && <QrScanner title={`Scan at ${scanStage}`} hint={`${storeName} · ${ship.shipment_id}`} onCode={onScan} onClose={() => setScanStage(null)} />}
         {action && (
           <button type="button" disabled={busy || (needsPhoto && !photo)} onClick={submit}
             className={`flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white disabled:opacity-50 ${needsPhoto ? "bg-emerald-600" : "bg-primary-500"}`}>

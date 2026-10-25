@@ -208,6 +208,8 @@ erDiagram
 | `forecast_runs` | forecast backtest metrics per dataset fingerprint |
 | `delivery_status` | shipment status + history (unique on `plan_id, shipment_id`) |
 | `delivery_proofs` | proof-of-delivery photo (compressed JPEG data URL) and note |
+| `trace_events` | QR scan event log (stage, result, flags, shipment, device, status change) |
+| `app_settings` | server-generated QR signing secret (unless `QR_SECRET` is set) |
 
 If MongoDB is down the API keeps working on a labelled **snapshot fallback** and an in-memory run store
 (`persisted: false` in responses).
@@ -305,6 +307,17 @@ Docker files (`Dockerfile`, `docker-compose.yml`) are provided; Atlas works by s
 * **♻️ Expiry Rescue Mission**: at-risk batches ranked by urgency with value at risk, re-planned through the
   optimizer to ship them first; waste avoided, value recovered, before/after KPIs, per-batch actions (dispatch,
   reallocate, transfer suggestion, write-off review); **Execute Rescue Plan** adopts it. Expired stock is never shipped.
+
+### QR batch traceability
+* Every batch gets a **signed QR code** (`SAHI1|module|batch|HMAC`) linked to its product, warehouse, quantity, expiry
+  and planned destination; printable labels on the **QR traceability** page.
+* **Scan at dispatch** and **scan at delivery** (website scan station or the driver app; live camera, photo or typed code).
+* Flags **wrong batches** (not planned for that truck), **expired** and short-dated products, forged/unknown codes and
+  duplicate scans. When every planned batch of a trip is scanned OK, the status updates automatically
+  (Dispatched, then Delivered).
+* Every scan is kept in an append-only **event log** (`trace_events`) with time, stage, result, device and person.
+* **Important:** a QR code only verifies information recorded in SahiSupply; it cannot independently prove that the
+  physical product is genuine.
 
 ### Mobile field app
 * **Driver**: depot picker, trips on a map, product lines per trip, step-by-step status, **mandatory photo proof**
@@ -486,6 +499,7 @@ All responses use `{ "data": ..., "meta": { "synthetic_data": true, ... } }`; er
 | Forecast | `POST /api/forecast/train` · `POST /api/forecast/predict` · `GET /api/forecast/metrics` · `GET /api/evaluation` |
 | Live data | `GET /api/live/weather` |
 | Planning | `POST /api/optimization/run` · `GET /api/optimization/history` · `GET /api/optimization/{plan_id}` · `/explanations` · `/insights` · `POST /override` · `GET /overrides` · `GET /export.csv` · `POST /api/scenarios/run` |
+| Traceability | `GET /api/trace/labels` · `POST /api/trace/resolve` · `POST /api/trace/scan` · `GET /api/trace/events` |
 | Deliveries | `GET /api/optimization/{plan_id}/deliveries` · `POST .../deliveries/{shipment_id}/status` (`status`, optional `proof_photo`, `note`) · `GET .../deliveries/{shipment_id}/proof` |
 | Simulations | `GET /api/chaos/kinds` · `POST /api/chaos/run` · `POST /api/rescue/run` |
 | Assistant | `GET /api/assistant/status` · `POST /api/assistant/chat` |
