@@ -1,10 +1,11 @@
-import { CheckCircle2, Loader2, Settings, Truck, Warehouse, XCircle } from "lucide-react";
+import { CheckCircle2, Loader2, PackageSearch, Settings, Truck, Warehouse, XCircle } from "lucide-react";
 import { useState } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { api, ApiError, getApiBase, isNativeApp, setApiBase } from "../api/client";
 import { usePlanner } from "../hooks/usePlanner";
 import { MODULE_LABEL, TAGLINE } from "../utils/labels";
 import DriverView from "./DriverView";
+import OrderView from "./OrderView";
 import { SplashScreen } from "./SplashScreen";
 import WarehouseView from "./WarehouseView";
 
@@ -32,13 +33,14 @@ export default function MobileApp() {
             <Route index element={<Navigate to="driver" replace />} />
             <Route path="driver" element={<DriverView />} />
             <Route path="warehouse" element={<WarehouseView />} />
+            <Route path="order" element={<OrderView />} />
             <Route path="settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="driver" replace />} />
           </Routes>
         )}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-[1100] mx-auto flex max-w-md border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]" aria-label="Mobile">
-        {[{ to: "driver", label: "Driver", icon: Truck }, { to: "warehouse", label: "Warehouse", icon: Warehouse }, { to: "settings", label: "Settings", icon: Settings }].map((t) => (
+        {[{ to: "driver", label: "Driver", icon: Truck }, { to: "warehouse", label: "Warehouse", icon: Warehouse }, { to: "order", label: "Order", icon: PackageSearch }, { to: "settings", label: "Settings", icon: Settings }].map((t) => (
           <NavLink key={t.to} to={`/m/${t.to}`} className={({ isActive }) => `flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium ${isActive ? "text-primary-600" : "text-slate-500"}`}>
             <t.icon size={20} aria-hidden />{t.label}
           </NavLink>

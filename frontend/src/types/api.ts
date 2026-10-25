@@ -609,7 +609,7 @@ export interface RouteStopTime {
   depart_at: string; units: number; urgent: boolean; warning: string | null;
 }
 export interface RouteCandidate {
-  label: string; kind: "connected" | "optimized" | "urgent_first" | "direct"; order: string[]; legs: RouteLeg[]; timeline: RouteStopTime[];
+  label: string; kind: "connected" | "optimized" | "urgent_first" | "direct" | "one_truck" | "parallel"; order: string[]; legs: RouteLeg[]; timeline: RouteStopTime[];
   distance_km: number; drive_min: number; handling_min: number; total_min: number; eta: string; cost: number | null; units: number;
   blocked: string[]; feasible_route: boolean; recommended: boolean; urgent_reached_min: number | null; shipments: string[];
   deadline: { deadline_at: string; arrival_at: string; slack_min: number; met: boolean; type: string } | null;
