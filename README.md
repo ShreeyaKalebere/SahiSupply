@@ -1,6 +1,8 @@
 # SahiSupply
 
-**Right Product. Right Place. Right Time.**
+<p align="center"><img src="frontend/public/brand/logo.png" alt="SahiSupply" width="420" /></p>
+
+<p align="center"><b>Sahi Stock. Sahi Jagah. Sahi Samay.</b><br/><i>Right stock. Right place. Right time.</i></p>
 
 SahiSupply is an explainable, expiry-aware **distribution-planning platform** for multi-warehouse networks. Every
 week it decides **which product batch goes to which store and how much**, while respecting stock, warehouse and

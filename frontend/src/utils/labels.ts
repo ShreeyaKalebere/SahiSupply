@@ -1,6 +1,9 @@
 // Plain-language wording used across the UI. Technical terms stay behind "details" toggles.
 import type { AllocationRow, Alternative, DeliveryStatus, InsightItem, ScenarioId } from "../types/api";
 
+/** Product slogan, shown on the website sidebar and the mobile splash screen. */
+export const TAGLINE = ["Sahi Stock.", "Sahi Jagah.", "Sahi Samay."] as const;
+
 export const MODULE_LABEL: Record<string, string> = { pharmacy: "Pharmacy", grocery: "Grocery", cosmetics: "Cosmetics" };
 export const STORE_WORD: Record<string, string> = { pharmacy: "pharmacies, clinics & hospitals", grocery: "kiranas & supermarkets", cosmetics: "beauty stores, salons & department stores" };
 

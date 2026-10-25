@@ -3,8 +3,9 @@ import { useState } from "react";
 import { Navigate, NavLink, Route, Routes } from "react-router-dom";
 import { api, ApiError, getApiBase, isNativeApp, setApiBase } from "../api/client";
 import { usePlanner } from "../hooks/usePlanner";
-import { MODULE_LABEL } from "../utils/labels";
+import { MODULE_LABEL, TAGLINE } from "../utils/labels";
 import DriverView from "./DriverView";
+import { SplashScreen } from "./SplashScreen";
 import WarehouseView from "./WarehouseView";
 
 /** Mobile app shell (Android APK via Capacitor, or /m in a phone browser): driver, warehouse, settings. */
@@ -13,10 +14,14 @@ export default function MobileApp() {
   const needsServer = isNativeApp() && !getApiBase();
   return (
     <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col bg-slate-100">
-      <header className="sticky top-0 z-[1100] bg-primary-500 px-4 pb-3 pt-[max(env(safe-area-inset-top),12px)] text-white shadow">
-        <div className="flex items-center justify-between">
-          <div><div className="text-lg font-extrabold leading-tight">SahiSupply</div><div className="text-[11px] opacity-80">Field app · synthetic sample data</div></div>
-          <select aria-label="Industry" className="rounded-lg bg-white/15 px-2 py-1 text-sm font-medium text-white" value={p.module} onChange={(e) => p.setModule(e.target.value)}>
+      <SplashScreen />
+      <header className="sticky top-0 z-[1100] border-b border-slate-200 bg-white px-4 pb-2.5 pt-[max(env(safe-area-inset-top),12px)] shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <img src="/brand/logo.png" alt="SahiSupply" className="h-7 w-auto" />
+            <div className="mt-0.5 truncate text-[10px] font-medium text-slate-500">{TAGLINE.join(" ")} · sample data</div>
+          </div>
+          <select aria-label="Industry" className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-sm font-medium text-slate-800" value={p.module} onChange={(e) => p.setModule(e.target.value)}>
             {p.modules.map((m) => <option key={m.industry} value={m.industry} className="text-slate-900">{MODULE_LABEL[m.industry] ?? m.display_name}</option>)}
           </select>
         </div>

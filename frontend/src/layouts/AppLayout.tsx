@@ -9,7 +9,7 @@ import { PlanStatusBanner, SourceBadges } from "../components/PlanStatus";
 import { ErrorBox, Pill } from "../components/ui";
 import { usePlanner } from "../hooks/usePlanner";
 import { cx, fmtDate } from "../utils/format";
-import { MODULE_LABEL, SCENARIO_TEXT } from "../utils/labels";
+import { MODULE_LABEL, SCENARIO_TEXT, TAGLINE } from "../utils/labels";
 
 const MAIN = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -47,12 +47,9 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen">
       <aside className="no-print sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-slate-100 bg-white lg:flex">
-        <div className="flex items-center gap-2.5 px-6 py-6">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary-500 text-white"><Truck size={18} aria-hidden /></div>
-          <div>
-            <div className="text-lg font-bold text-slate-900">Sahi<span className="text-primary-500">Supply</span></div>
-            <div className="text-[10px] text-slate-400">Right product · Right place · Right time</div>
-          </div>
+        <div className="px-6 py-6">
+          <img src="/brand/logo.png" alt="SahiSupply" className="h-9 w-auto" />
+          <div className="mt-1.5 text-[11px] font-medium tracking-wide text-slate-500">{TAGLINE.join(" ")}</div>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3" aria-label="Main">
           {MAIN.map((n) => <NavItem key={n.to} {...n} />)}
@@ -69,6 +66,7 @@ export function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-[1000] border-b border-slate-100 bg-white/95 backdrop-blur">
           <div className="flex flex-wrap items-center gap-3 px-4 py-3 lg:px-8">
+            <img src="/brand/mark.png" alt="SahiSupply" className="h-8 w-8 lg:hidden" />
             <div className="flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Business type">
               {p.modules.map((m) => (
                 <button key={m.industry} role="tab" aria-selected={p.module === m.industry} onClick={() => p.setModule(m.industry)}
