@@ -5,13 +5,13 @@ import csv
 import io
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Path, Query
 from fastapi.responses import StreamingResponse
 
 from app.api.common import ApiError, metrics, ok, require_module
 from app.scenarios.custom import NetworkEdit
-from app.schemas.requests import OverrideRequest, RunRequest
-from app.services import run_store
+from app.schemas.requests import DeliveryStatusRequest, OverrideRequest, RunRequest
+from app.services import delivery_status, run_store
 from app.services.overrides import OverrideRejected, apply_override
 from app.services.planner import run_plan
 
@@ -106,6 +106,32 @@ def optimization_overrides(plan_id: str):
     return ok(run_store.overrides(plan_id))
 
 
+def _approved(plan_id: str) -> dict:
+    run = _get(plan_id)
+    if run["status"] != "VALID" or not run.get("optimizer") or run.get("chaos"):
+        raise ApiError(409, "PLAN_NOT_APPROVED", "Only a valid (approved), non-simulated plan has deliveries to track")
+    return run
+
+
+@router.get("/optimization/{plan_id}/deliveries")
+def optimization_deliveries(plan_id: str):
+    rows, persisted = delivery_status.list_for_run(_approved(plan_id))
+    return ok(rows, count=len(rows), persisted=persisted, statuses=list(delivery_status.STATUSES))
+
+
+@router.post("/optimization/{plan_id}/deliveries/{shipment_id}/status")
+def optimization_delivery_status(plan_id: str, req: DeliveryStatusRequest,
+                                 shipment_id: str = Path(pattern=r"^SHP-[A-Za-z0-9_]{1,30}-[A-Za-z0-9_]{1,30}$")):
+    run = _approved(plan_id)
+    try:
+        row, persisted = delivery_status.advance(run, shipment_id, req.status)
+    except delivery_status.UnknownShipment:
+        raise ApiError(404, "UNKNOWN_SHIPMENT", f"Shipment {shipment_id} is not in plan {plan_id}") from None
+    except delivery_status.InvalidTransition as exc:
+        raise ApiError(409, "INVALID_TRANSITION", str(exc), {"current": exc.current, "allowed": exc.allowed}) from None
+    return ok(row, persisted=persisted)
+
+
 @router.get("/optimization/{plan_id}/export.csv")
 def optimization_export(plan_id: str, plan: str = Query("optimizer", pattern="^(optimizer|baseline)$")):
     run = _get(plan_id)
@@ -135,6 +161,33 @@ def optimization_export(plan_id: str, plan: str = Query("optimizer", pattern="^(
                              headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
+def plan_diff(s0: dict, run: dict) -> dict:
+    """Row-by-row allocation changes and KPI deltas between a reference plan and a changed one."""
+    a = {(r["outlet_id"], r["product_id"]): r for r in s0["allocation"]}
+    b = {(r["outlet_id"], r["product_id"]): r for r in run["allocation"]}
+    changed = []
+    for k in sorted(set(a) | set(b), key=lambda k: (int(k[0][1:]), k[1])):
+        ra, rb = a.get(k), b.get(k)
+        src_a = {(s["warehouse_id"], s["batch_id"]): s["qty"] for s in (ra or {}).get("sources", [])}
+        src_b = {(s["warehouse_id"], s["batch_id"]): s["qty"] for s in (rb or {}).get("sources", [])}
+        if ra and rb and src_a == src_b and ra["required"] == rb["required"]:
+            continue
+        ref = rb or ra
+        changed.append({
+            "outlet_id": k[0], "outlet_name": ref["outlet_name"], "product_id": k[1],
+            "product_name": ref["product_name"], "region": ref["region"],
+            "s0_required": ra["required"] if ra else 0, "scenario_required": rb["required"] if rb else 0,
+            "s0_allocated": ra["allocated"] if ra else 0, "scenario_allocated": rb["allocated"] if rb else 0,
+            "s0_unmet": ra["unmet"] if ra else 0, "scenario_unmet": rb["unmet"] if rb else 0,
+            "s0_sources": sorted(f"{w}:{b}" for w, b in src_a), "scenario_sources": sorted(f"{w}:{b}" for w, b in src_b),
+        })
+    ko, ks = s0["optimizer"]["kpis"], run["optimizer"]["kpis"]
+    return {"changed_rows": changed, "changed_count": len(changed),
+            "kpi_delta": {k: ks[k] - ko[k] for k in ("fill_rate", "unmet_units", "transport_cost",
+                                                     "critical_shortage_units", "expiry_risk_units")},
+            "s0_kpis": ko, "s0_fingerprint": s0["fingerprint"]}
+
+
 @router.post("/scenarios/run")
 def scenarios_run(req: RunRequest):
     """Run a scenario and diff its plan against a freshly solved S0 plan on the same settings."""
@@ -144,27 +197,5 @@ def scenarios_run(req: RunRequest):
         s0 = run_plan(req.module, "S0", rule_toggles=req.rule_toggles, contested_pattern=req.contested_pattern,
                       include_insights=False, include_regret=False, network=_network(req))
         if s0.get("optimizer"):
-            a = {(r["outlet_id"], r["product_id"]): r for r in s0["allocation"]}
-            b = {(r["outlet_id"], r["product_id"]): r for r in run["allocation"]}
-            changed = []
-            for k in sorted(set(a) | set(b), key=lambda k: (int(k[0][1:]), k[1])):
-                ra, rb = a.get(k), b.get(k)
-                src_a = {(s["warehouse_id"], s["batch_id"]): s["qty"] for s in (ra or {}).get("sources", [])}
-                src_b = {(s["warehouse_id"], s["batch_id"]): s["qty"] for s in (rb or {}).get("sources", [])}
-                if ra and rb and src_a == src_b and ra["required"] == rb["required"]:
-                    continue
-                ref = rb or ra
-                changed.append({
-                    "outlet_id": k[0], "outlet_name": ref["outlet_name"], "product_id": k[1],
-                    "product_name": ref["product_name"], "region": ref["region"],
-                    "s0_required": ra["required"] if ra else 0, "scenario_required": rb["required"] if rb else 0,
-                    "s0_allocated": ra["allocated"] if ra else 0, "scenario_allocated": rb["allocated"] if rb else 0,
-                    "s0_unmet": ra["unmet"] if ra else 0, "scenario_unmet": rb["unmet"] if rb else 0,
-                    "s0_sources": sorted(f"{w}:{b}" for w, b in src_a), "scenario_sources": sorted(f"{w}:{b}" for w, b in src_b),
-                })
-            ko, ks = s0["optimizer"]["kpis"], run["optimizer"]["kpis"]
-            diff = {"changed_rows": changed, "changed_count": len(changed),
-                    "kpi_delta": {k: ks[k] - ko[k] for k in ("fill_rate", "unmet_units", "transport_cost",
-                                                             "critical_shortage_units", "expiry_risk_units")},
-                    "s0_kpis": ko, "s0_fingerprint": s0["fingerprint"]}
+            diff = plan_diff(s0, run)
     return ok({"run": public_run(run), "diff": diff}, data_source=run["data_source"], persisted=run["persisted"])

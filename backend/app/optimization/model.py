@@ -72,7 +72,7 @@ def penalty_settings(problem: PlanningProblem, elig: Eligibility) -> dict:
 
 
 def solve(problem: PlanningProblem, elig: Eligibility | None = None, *, relax: bool = False,
-          time_limit_s: float = 10.0) -> SolveResult:
+          time_limit_s: float = 10.0, rescue: dict[str, float] | None = None) -> SolveResult:
     elig = elig or build_eligibility(problem)
     solver = pywraplp.Solver.CreateSolver("GLOP" if relax else "SCIP")
     if solver is None:
@@ -162,7 +162,8 @@ def solve(problem: PlanningProblem, elig: Eligibility | None = None, *, relax: b
     obj = solver.Objective()
     for e in pairs:
         var = x[(e.batch_id, e.outlet_id)]
-        obj.SetCoefficient(var, e.unit_cost + fefo_eps * r_b.get(e.batch_id, 0))
+        # Expiry rescue: shipping a unit of an at-risk batch avoids writing it off (its unit cost).
+        obj.SetCoefficient(var, e.unit_cost + fefo_eps * r_b.get(e.batch_id, 0) - (rescue or {}).get(e.batch_id, 0.0))
     for k, uk in u.items():
         obj.SetCoefficient(uk, pi[k[1]])
     for k, s in slack.items():

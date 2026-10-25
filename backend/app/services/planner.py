@@ -26,6 +26,8 @@ from app.optimization.insights import compute_insights
 from app.optimization.model import SolveResult, solve
 from app.optimization.plan import Plan
 from app.optimization.regret import apply_plan, regret_report
+from app.optimization.rescue import at_risk_batches, rescue_bonus
+from app.scenarios.chaos import ChaosEdit, ChaosError, apply_chaos
 from app.scenarios.custom import NetworkEdit, NetworkEditError, apply_network
 from app.scenarios.definitions import SCENARIOS, apply_scenario
 from app.services import data_service
@@ -45,7 +47,7 @@ class PlanningInputError(ValueError):
 def prepare_problem(module: str, scenario_id: str, *, rule_toggles: dict[str, bool] | None = None,
                     contested_pattern: bool = True, dataset: dict | None = None, source: str | None = None,
                     forecast: ForecastResult | None = None,
-                    network: NetworkEdit | None = None) -> tuple[PlanningProblem, dict]:
+                    network: NetworkEdit | None = None, chaos: ChaosEdit | None = None) -> tuple[PlanningProblem, dict]:
     cfg = get_config(module)
     try:
         rules = resolve_rules(cfg, rule_toggles)
@@ -61,6 +63,13 @@ def prepare_problem(module: str, scenario_id: str, *, rule_toggles: dict[str, bo
             network_summary = apply_network(sc.dataset, network)
         except NetworkEditError as exc:
             raise PlanningInputError(str(exc)) from exc
+    chaos_summary = None
+    if chaos is not None:
+        try:
+            chaos_summary, mult = apply_chaos(sc.dataset, chaos)
+        except ChaosError as exc:
+            raise PlanningInputError(str(exc)) from exc
+        sc.demand_multipliers = {**sc.demand_multipliers, **mult}
     need = compute_need(sc.dataset, need_source=cfg.planning.need_source,
                         review_period_days=cfg.planning.review_period_days,
                         z_by_class=cfg.service_levels.model_dump(), forecast=fc,
@@ -68,7 +77,8 @@ def prepare_problem(module: str, scenario_id: str, *, rule_toggles: dict[str, bo
     problem = build_problem(sc.dataset, module=module, scenario_id=scenario_id, rules=rules,
                             review_period_days=cfg.planning.review_period_days, need_detail=need,
                             data_source=source or "mongodb")
-    return problem, {"scenario": sc, "forecast": fc, "config": cfg, "dataset": dataset, "network": network_summary}
+    return problem, {"scenario": sc, "forecast": fc, "config": cfg, "dataset": dataset, "network": network_summary,
+                     "chaos": chaos_summary}
 
 
 def problem_from_raw(raw: dict, need_detail: list[dict], rules_toggles_spec: dict, data_source: str) -> PlanningProblem:
@@ -149,7 +159,8 @@ _s0_lock = threading.Lock()
 
 def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bool] | None = None,
              contested_pattern: bool = True, include_insights: bool = True, include_regret: bool = True,
-             time_limit_s: float | None = None, network: NetworkEdit | None = None) -> dict:
+             time_limit_s: float | None = None, network: NetworkEdit | None = None,
+             chaos: ChaosEdit | None = None, rescue: bool = False) -> dict:
     t_all = time.perf_counter()
     timings: dict[str, float] = {}
     if scenario_id not in SCENARIOS:
@@ -158,7 +169,7 @@ def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bo
 
     t = time.perf_counter()
     problem, ctx = prepare_problem(module, scenario_id, rule_toggles=rule_toggles, contested_pattern=contested_pattern,
-                                   network=network)
+                                   network=network, chaos=chaos)
     cfg: ModuleConfig = ctx["config"]
     fc: ForecastResult = ctx["forecast"]
     timings["forecast_and_need"] = time.perf_counter() - t
@@ -166,7 +177,8 @@ def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bo
 
     t = time.perf_counter()
     elig = build_eligibility(problem)
-    opt_res: SolveResult = solve(problem, elig, time_limit_s=time_limit_s)
+    bonus = rescue_bonus(problem) if rescue else None
+    opt_res: SolveResult = solve(problem, elig, time_limit_s=time_limit_s, rescue=bonus)
     timings["optimizer"] = time.perf_counter() - t
     t = time.perf_counter()
     base_plan = greedy_plan(problem, elig)
@@ -271,6 +283,11 @@ def run_plan(module: str, scenario_id: str = "S0", *, rule_toggles: dict[str, bo
         "contested_pattern": contested_pattern,
         "network": ({"edit": network.as_dict(), "summary": ctx["network"]}
                     if network is not None and not network.is_empty() else None),
+        "chaos": ctx["chaos"],
+        "rescue": ({"rescue_batches": sorted(bonus), "note": "Optimizer rewarded each unit shipped from an at-risk batch by "
+                    "its unit cost (the write-off avoided). Demand, capacity, road, shelf-life and storage rules unchanged."}
+                   if rescue else None),
+        "at_risk": at_risk_batches(problem),
         "rule_toggles": rule_toggles or {},
         "rules_enforced": list(problem.rules.enabled_ids),
         "rules_disabled": list(problem.rules.disabled_ids),

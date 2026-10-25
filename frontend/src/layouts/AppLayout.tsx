@@ -1,7 +1,6 @@
 import {
   Boxes, CalendarDays, Network, CloudLightning, Download, GitCompareArrows, HelpCircle, History, LayoutDashboard, Lightbulb, Map,
-  Play, Settings2, Truck, TrendingUp,
-} from "lucide-react";
+  Play, Settings2, Truck, Recycle, TrendingUp, } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { ChatWidget } from "../components/ChatWidget";
@@ -19,6 +18,7 @@ const MAIN = [
   { to: "/scenarios", label: "What-if", icon: CloudLightning },
   { to: "/insights", label: "Smart suggestions", icon: Lightbulb },
   { to: "/inventory", label: "Stock & expiry", icon: Boxes },
+  { to: "/rescue", label: "Expiry rescue", icon: Recycle },
   { to: "/forecast", label: "Demand forecast", icon: TrendingUp },
 ];
 const MORE = [

@@ -1,5 +1,5 @@
 import type {
-  ChatReply, ChatTurn, LiveWeather, NetworkEdit, Route, WarehouseDetails,
+  ChaosParams, ChaosResult, ChatReply, ChatTurn, DeliveryStatus, RescueResult, LiveWeather, Shipment, NetworkEdit, Route, WarehouseDetails,
   Dashboard, Envelope, Evaluation, ForecastChart, ForecastMetrics, Health, HistoryRow, InventoryRow, ModuleConfigView,
   ModuleSummary, Outlet, Risks, Run, Scenario, ScenarioDiff, ScenarioId, Warehouse,
 } from "../types/api";
@@ -73,6 +73,13 @@ export const api = {
   history: (m?: string, limit = 50) => request<HistoryRow[]>(`/api/optimization/history?${q({ module: m, limit: String(limit) })}`),
   override: (id: string, body: { batch_id: string; outlet_id: string; new_qty: number; reason: string; actor?: string }) =>
     request<Run>(`/api/optimization/${id}/override`, { method: "POST", body: JSON.stringify(body) }),
+  deliveries: (planId: string) => request<Shipment[]>(`/api/optimization/${planId}/deliveries`),
+  setDeliveryStatus: (planId: string, shipmentId: string, status: DeliveryStatus) =>
+    request<Shipment>(`/api/optimization/${planId}/deliveries/${encodeURIComponent(shipmentId)}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+  chaosRun: (p: RunParams & { before_plan_id?: string | null; chaos: ChaosParams }) =>
+    request<ChaosResult>("/api/chaos/run", { method: "POST", body: JSON.stringify(p) }),
+  rescueRun: (p: RunParams & { before_plan_id?: string | null }) =>
+    request<RescueResult>("/api/rescue/run", { method: "POST", body: JSON.stringify(p) }),
   evaluation: (m: string) => request<Evaluation>(`/api/evaluation?module=${m}`),
   liveWeather: (m: string, contested = true, threshold?: number) =>
     request<LiveWeather>(`/api/live/weather?${q({ module: m, contested_pattern: contested, threshold_mm: threshold?.toString() })}`),

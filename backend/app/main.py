@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import assistant, network, optimization, system
+from app.api import assistant, network, optimization, simulation, system
 from app.config import REPO_ROOT, get_settings
 from app.database.connection import DatabaseUnavailable, get_db, ping
 from app.database.indexes import ensure_schema
@@ -129,6 +129,7 @@ app.include_router(system.router)
 app.include_router(network.router)
 app.include_router(optimization.router)
 app.include_router(assistant.router)
+app.include_router(simulation.router)
 
 # Serve the built frontend (single-image deployment) when present.
 _dist = Path(REPO_ROOT / "frontend" / "dist")

@@ -5,7 +5,7 @@ from pymongo import DESCENDING
 from pymongo.database import Database
 
 SUMMARY_FIELDS = {"_id": 0, "plan_id": 1, "created_at": 1, "module": 1, "scenario": 1, "scenario_id": 1, "status": 1,
-                  "plan_status": 1, "fingerprint": 1, "contested_pattern": 1, "network.summary": 1, "rules_enforced": 1, "data_source": 1,
+                  "plan_status": 1, "fingerprint": 1, "contested_pattern": 1, "network.summary": 1, "chaos.kind": 1, "rescue.note": 1, "rules_enforced": 1, "data_source": 1,
                   "version": 1, "optimizer.solver": 1, "optimizer.kpis.fill_rate": 1,
                   "optimizer.kpis.unmet_units": 1, "optimizer.kpis.transport_cost": 1,
                   "optimizer.kpis.critical_shortage_units": 1, "optimizer.check.valid": 1,

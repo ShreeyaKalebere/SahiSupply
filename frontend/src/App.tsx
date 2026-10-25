@@ -1,3 +1,4 @@
+import { DeliveriesProvider } from "./hooks/useDeliveries";
 import { Route, Routes } from "react-router-dom";
 import { PlannerProvider } from "./hooks/usePlanner";
 import { AppLayout } from "./layouts/AppLayout";
@@ -12,11 +13,13 @@ import MapPage from "./pages/MapPage";
 import NetworkPage from "./pages/NetworkPage";
 import OverviewPage from "./pages/OverviewPage";
 import PlannerPage from "./pages/PlannerPage";
+import RescuePage from "./pages/RescuePage";
 import ScenariosPage from "./pages/ScenariosPage";
 
 export default function App() {
   return (
     <PlannerProvider>
+      <DeliveriesProvider>
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
@@ -28,12 +31,14 @@ export default function App() {
           <Route path="forecast" element={<ForecastPage />} />
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="map" element={<MapPage />} />
+          <Route path="rescue" element={<RescuePage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="export" element={<ExportPage />} />
           <Route path="*" element={<OverviewPage />} />
         </Route>
       </Routes>
+      </DeliveriesProvider>
     </PlannerProvider>
   );
 }

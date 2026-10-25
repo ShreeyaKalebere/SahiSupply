@@ -131,6 +131,19 @@ export interface AllocationSource {
   lead_time_days: number;
 }
 
+export type DeliveryStatus = "approved" | "dispatched" | "in_transit" | "delivered" | "complete";
+
+export interface Shipment {
+  shipment_id: string;
+  warehouse_id: string;
+  outlet_id: string;
+  qty: number;
+  products: number;
+  status: DeliveryStatus;
+  updated_at: string | null;
+  history: { status: DeliveryStatus; at: string }[];
+}
+
 export interface AllocationRow {
   outlet_id: string;
   outlet_name: string;
@@ -290,6 +303,8 @@ export interface Route {
 
 export interface Run {
   plan_id: string;
+  chaos?: ChaosSummary | null;
+  rescue?: { rescue_batches: string[]; note: string } | null;
   network?: { edit: NetworkEdit; summary: NetworkSummary } | null;
   created_at: string;
   module: string;
@@ -416,6 +431,8 @@ export interface Outlet {
 
 export interface HistoryRow {
   plan_id: string;
+  chaos?: unknown;
+  rescue?: unknown;
   created_at: string;
   module: string;
   scenario_id: string;
@@ -511,4 +528,51 @@ export interface WarehouseDetails {
   planning_date: string;
   data_source: DataSource;
   data_notes: { from_database: string; simulated: string[] };
+}
+
+// ---- Controlled simulations (Chaos Mode, Expiry Rescue) ----
+export type ChaosKind = "warehouse_offline" | "demand_surge" | "road_closed" | "supplier_delay" | "fuel_cost";
+
+export interface ChaosParams { kind: ChaosKind; warehouse_id?: string | null; route_id?: string | null; region?: string | null }
+
+export interface ChaosSummary {
+  kind: ChaosKind; label: string; params: ChaosParams; closed_routes: string[]; offline_warehouses: string[];
+  delayed_batches: string[]; delayed_units: number; demand_uplift: number | null; cost_uplift: number | null;
+  affected_outlets?: string[]; assumptions: string[];
+}
+
+export interface Lane { warehouse_id: string; outlet_id: string; qty: number }
+
+export interface Requirements {
+  feasible: boolean; solver_status?: string | null; message?: string; checker_valid?: boolean;
+  violations?: { rule?: string; message?: string }[]; unmet_units?: number; critical_shortage_units?: number;
+  short_orders?: number; below_fill_floor?: number;
+  top_shortages?: { outlet_id: string; outlet_name: string; product_id: string; product_name: string; criticality: string; required: number; allocated: number; unmet: number }[];
+}
+
+export interface ChaosResult {
+  before: Run; after: Run; chaos: ChaosSummary; note: string; requirements: Requirements;
+  impact: {
+    diff: ScenarioDiff; lost_lanes: Lane[]; new_lanes: Lane[]; affected_outlets: string[];
+    delayed_deliveries: { outlet_id: string; outlet_name: string; product_name: string; lead_before: number; lead_after: number }[];
+    newly_short: { outlet_id: string; outlet_name: string; product_name: string; unmet_before: number; unmet_after: number }[];
+    kpis_before: Kpis; kpis_after: Kpis; explanation: string[];
+  } | null;
+}
+
+export interface RescueBatch {
+  batch_id: string; product_id: string; product_name: string; warehouse_id: string; warehouse_name: string;
+  quantity: number; expiry_date: string; days_to_expiry: number; remaining_life_pct: number; expired: boolean;
+  unit_value: number; value_at_risk: number; shipped_before: number; shipped_after: number; left_before: number;
+  left_after: number; units_saved: number; value_recovered: number; urgency: "expired" | "critical" | "high" | "medium";
+  actions: { type: "dispose" | "dispatch" | "reallocate" | "transfer" | "write_off"; text: string }[];
+}
+
+export interface RescueResult {
+  before_plan_id: string; run: Run; batches: RescueBatch[]; requirements: Requirements; note: string;
+  summary: {
+    batches_at_risk: number; expired_batches: number; units_at_risk_before: number; units_at_risk_after: number;
+    value_at_risk_before: number; value_at_risk_after: number; expired_units: number; waste_avoided_units: number;
+    value_recovered: number; kpis_before: Kpis; kpis_after: Kpis;
+  };
 }

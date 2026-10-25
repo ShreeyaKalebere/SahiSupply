@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError } from "../api/client";
-import type { ModuleSummary, NetworkEdit, Run, Scenario, ScenarioDiff, ScenarioId } from "../types/api";
+import type { ChaosResult, ModuleSummary, NetworkEdit, Run, Scenario, ScenarioDiff, ScenarioId } from "../types/api";
 
 interface PlannerState {
   modules: ModuleSummary[];
@@ -24,6 +24,10 @@ interface PlannerState {
   fullRun: Run | null;
   bootError: ApiError | null;
   currentModule: ModuleSummary | undefined;
+  /** Active Chaos Mode simulation: its plan is shown everywhere until reset. */
+  chaos: ChaosResult | null;
+  startChaos: (r: ChaosResult) => void;
+  resetChaos: () => void;
 }
 
 const Ctx = createContext<PlannerState | null>(null);
@@ -54,6 +58,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
   const [fullRuns, setFullRuns] = useState<Record<string, Run>>({});
   const [networks, setNetworks] = useState<Record<string, NetworkEdit | null>>({});
   const [diffs, setDiffs] = useState<Record<string, ScenarioDiff | null>>({});
+  const [chaosByModule, setChaosByModule] = useState<Record<string, ChaosResult | null>>({});
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<ApiError | null>(null);
   const [bootError, setBootError] = useState<ApiError | null>(null);
@@ -80,8 +85,9 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     api.history(module, 10)
       .then(async (h) => {
         // Prefer the latest normal-week plan so the dashboard opens on the regular situation.
-        const latest = h.data.find((r) => r.status === "VALID" && r.scenario_id === "S0" && !r.network)
-          ?? h.data.find((r) => r.status === "VALID" && !r.network);
+        const normal = h.data.filter((r) => !r.chaos && !r.rescue);
+        const latest = normal.find((r) => r.status === "VALID" && r.scenario_id === "S0" && !r.network)
+          ?? normal.find((r) => r.status === "VALID" && !r.network);
         if (!latest) return;
         const full = await api.getRun(latest.plan_id);
         setRuns((prev) => (prev[module] ? prev : { ...prev, [module]: full.data }));
@@ -127,6 +133,7 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
         setDiffs((p) => ({ ...p, [module]: r.diff }));
       }
       setRuns((p) => ({ ...p, [module]: run }));
+      setChaosByModule((p) => ({ ...p, [module]: null }));
       if (!run.network) setFullRuns((p) => ({ ...p, [module]: run }));
       if (opts?.scenario) setScenario(sid);
       return run;
@@ -138,15 +145,30 @@ export function PlannerProvider({ children }: { children: ReactNode }) {
     }
   }, [module, scenario, ruleToggles, contested, network]);
 
-  const setRun = useCallback((r: Run) => setRuns((p) => ({ ...p, [r.module]: r })), []);
+  const setRun = useCallback((r: Run) => {
+    setRuns((p) => ({ ...p, [r.module]: r }));
+    setChaosByModule((p) => ({ ...p, [r.module]: null }));
+  }, []);
+
+  // Chaos runs never replace the original plan: it is kept in the result and restored on reset.
+  const startChaos = useCallback((r: ChaosResult) => {
+    setRuns((p) => ({ ...p, [r.after.module]: r.after }));
+    setChaosByModule((p) => ({ ...p, [r.after.module]: r }));
+  }, []);
+  const resetChaos = useCallback(() => {
+    const c = chaosByModule[module];
+    if (c) setRuns((p) => ({ ...p, [module]: c.before }));
+    setChaosByModule((p) => ({ ...p, [module]: null }));
+  }, [chaosByModule, module]);
 
   const value = useMemo<PlannerState>(() => ({
     modules, scenarios, module, setModule, scenario, setScenario, contested, setContested,
     ruleToggles, setRuleToggle, run: runs[module] ?? null, setRun, scenarioDiff: diffs[module] ?? null,
     running, runError, runPlan, bootError, currentModule: modules.find((m) => m.industry === module),
     network, setNetwork, fullRun: fullRuns[module] ?? null,
+    chaos: chaosByModule[module] ?? null, startChaos, resetChaos,
   }), [modules, scenarios, module, setModule, scenario, contested, ruleToggles, setRuleToggle, runs, setRun, diffs,
-    running, runError, runPlan, bootError, network, setNetwork, fullRuns]);
+    running, runError, runPlan, bootError, network, setNetwork, fullRuns, chaosByModule, startChaos, resetChaos]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

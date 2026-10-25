@@ -1,8 +1,9 @@
 import L from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip as LTooltip, useMap } from "react-leaflet";
 import type { Outlet, Route, Run, Warehouse } from "../types/api";
 import { fmtInt, fmtPct } from "../utils/format";
+import { shipmentId } from "../utils/labels";
 import { loadTruckSheet, SPRITE_COUNT, spriteIndex, TRUCK_CREDIT } from "../utils/truckSprites";
 import { Notice } from "./ui";
 
@@ -40,10 +41,12 @@ function arcPath(a: LatLng, b: LatLng, n = 32): LatLng[] {
  * (no image swaps, no fading), and markers move every animation frame outside React. Falls back to
  * dots if the model cannot load; no motion when the user prefers reduced motion.
  */
-function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] }) {
+function TruckLayer({ lanes, selected }: { lanes: { id: string; a: LatLng; b: LatLng; qty: number }[]; selected: string[] }) {
   const map = useMap();
   const [sheet, setSheet] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const markersRef = useRef<{ id: string; marker: L.Marker }[]>([]);
+  const [marked, setMarked] = useState(0);
   const key = useMemo(() => lanes.map((l) => `${l.a}|${l.b}|${l.qty}`).join(";"), [lanes]);
 
   useEffect(() => {
@@ -56,6 +59,7 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
     if (!map || lanes.length === 0 || (!sheet && !failed)) return;
     if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
     const group = L.layerGroup().addTo(map);
+    markersRef.current = [];
     const max = Math.max(1, ...lanes.map((l) => l.qty));
     const movers: { a: LatLng; c: LatLng; b: LatLng; marker: L.Marker; offset: number; dur: number; idx: number }[] = [];
     lanes.forEach((l, i) => {
@@ -67,6 +71,7 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
         const icon = L.divIcon({ className: "truck-icon", html, iconSize: [TRUCK_PX, TRUCK_PX], iconAnchor: [TRUCK_PX / 2, TRUCK_PX / 2] });
         const marker = L.marker(l.a, { icon, interactive: false, keyboard: false });
         group.addLayer(marker);
+        markersRef.current.push({ id: l.id, marker });
         movers.push({ a: l.a, c: arcControl(l.a, l.b), b: l.b, marker, offset: k / n + ((i * 0.173) % 1), dur: 10000 + (i % 5) * 1200, idx: -1 });
       }
     });
@@ -93,9 +98,18 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
       }
     };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); group.remove(); };
+    setMarked((n) => n + 1);
+    return () => { cancelAnimationFrame(raf); group.remove(); markersRef.current = []; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, key, sheet, failed]);
+
+  // Selected shipment's trucks turn green; only a class toggles, so positions and motion are untouched.
+  useEffect(() => {
+    for (const { id, marker } of markersRef.current) {
+      marker.getElement()?.classList.toggle("truck-selected", selected.includes(id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected.join(","), marked]);
   return null;
 }
 
@@ -104,10 +118,17 @@ function TruckLayer({ lanes }: { lanes: { a: LatLng; b: LatLng; qty: number }[] 
  * with a faint straight "shadow" underneath for depth; small 3D trucks drive along them; sending
  * warehouses pulse; closed roads (not connected) are red dotted lines.
  */
-export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutlet, closedWarehouses = [], rainSites = [], height = 520, onWarehouseClick }: {
+export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutlet, closedWarehouses = [], rainSites = [], height = 520, onWarehouseClick, selectedShipment = null, onFlowClick, flowStatus, altShipments = [], lostFlows = [] }: {
   warehouses: Warehouse[]; outlets: Outlet[]; flows: Flow[]; closedRoads: Route[];
   fillByOutlet: Record<string, number | undefined>; closedWarehouses?: string[]; rainSites?: string[]; height?: number;
   onWarehouseClick?: (warehouseId: string) => void;
+  /** Shipment id (SHP-{warehouse}-{store}) whose truck and route are highlighted green. */
+  selectedShipment?: string | null;
+  onFlowClick?: (shipmentId: string) => void;
+  flowStatus?: (shipmentId: string) => string | undefined;
+  /** Chaos Mode: alternative connections (green) and connections the disruption removed (animated red dashes). */
+  altShipments?: string[];
+  lostFlows?: Flow[];
 }) {
   const [tileError, setTileError] = useState(false);
   const pos = (id: string): LatLng | null => {
@@ -120,7 +141,7 @@ export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutl
   const sending = new Set(flows.map((f) => f.w));
   const lanes = flows.flatMap((f) => {
     const a = pos(f.w), b = pos(f.d);
-    return a && b ? [{ a, b, qty: f.qty }] : [];
+    return a && b ? [{ id: shipmentId(f.w, f.d), a, b, qty: f.qty }] : [];
   });
 
   return (
@@ -141,27 +162,41 @@ export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutl
           {flows.map((f) => {
             const a = pos(f.w), b = pos(f.d);
             if (!a || !b) return null;
-            const weight = 1.5 + 3 * (f.qty / maxQty);
+            const sid = shipmentId(f.w, f.d);
+            const sel = sid === selectedShipment || altShipments.includes(sid);
+            const color = sel ? "#16a34a" : "#2563eb";
+            const weight = 1.5 + 3 * (f.qty / maxQty) + (sel ? 1.5 : 0);
+            const st = flowStatus?.(sid);
             const path = arcPath(a, b);
             const step = path.length / ARC_SEGMENTS;
             const segments = Array.from({ length: ARC_SEGMENTS }, (_, s) => {
               const pts = path.slice(Math.floor(s * step), Math.min(path.length, Math.floor((s + 1) * step) + 1));
               const mid = (s + 0.5) / ARC_SEGMENTS;
-              return { pts, opacity: 0.06 + 0.5 * Math.sin(Math.PI * mid) };
+              return { pts, opacity: (sel ? 0.25 : 0.06) + (sel ? 0.7 : 0.5) * Math.sin(Math.PI * mid) };
             });
             return [
               <Polyline key={`s${f.w}${f.d}`} positions={[a, b]} interactive={false}
                 pathOptions={{ color: "#0f172a", weight: 1, opacity: 0.07 }} />,
               ...segments.map((sg, s) => (
                 <Polyline key={`a${f.w}${f.d}${s}`} positions={sg.pts} interactive={false}
-                  pathOptions={{ color: "#2563eb", weight, opacity: sg.opacity, lineCap: "round" }} />
+                  pathOptions={{ color, weight, opacity: sg.opacity, lineCap: "round" }} />
               )),
-              <Polyline key={`h${f.w}${f.d}`} positions={path} pathOptions={{ color: "#2563eb", weight: 12, opacity: 0 }}>
-                <LTooltip sticky>{name(f.w)} → {name(f.d)}: {fmtInt(f.qty)} units on the way</LTooltip>
+              <Polyline key={`h${f.w}${f.d}`} positions={path} pathOptions={{ color, weight: 12, opacity: 0 }}
+                eventHandlers={onFlowClick ? { click: () => onFlowClick(sid) } : undefined}>
+                <LTooltip sticky>{sid}: {name(f.w)} → {name(f.d)}, {fmtInt(f.qty)} units{st ? ` · ${st}` : " on the way"}</LTooltip>
               </Polyline>,
             ];
           })}
-          <TruckLayer lanes={lanes} />
+          {lostFlows.map((f) => {
+            const a = pos(f.w), b = pos(f.d);
+            return a && b ? (
+              <Polyline key={`l${f.w}${f.d}`} positions={arcPath(a, b)}
+                pathOptions={{ color: "#e11d48", weight: 3, opacity: 0.85, dashArray: "6 8", lineCap: "round", className: "lost-lane" }}>
+                <LTooltip sticky>Lost by the disruption: {name(f.w)} → {name(f.d)} ({fmtInt(f.qty)} units before)</LTooltip>
+              </Polyline>
+            ) : null;
+          })}
+          <TruckLayer lanes={lanes} selected={[...altShipments, ...(selectedShipment ? [selectedShipment] : [])]} />
           {outlets.map((o) => (
             <CircleMarker key={o.outlet_id} center={[o.lat, o.lon]} radius={8}
               pathOptions={{ color: rain.has(o.outlet_id) ? "#0ea5e9" : "#fff", weight: rain.has(o.outlet_id) ? 4 : 2, fillColor: storeColor(fillByOutlet[o.outlet_id]), fillOpacity: 1 }}>
@@ -189,6 +224,9 @@ export function NetworkMap({ warehouses, outlets, flows, closedRoads, fillByOutl
         <span className="flex items-center gap-1.5"><svg width="28" height="6" aria-hidden><line x1="0" y1="3" x2="28" y2="3" stroke="#e11d48" strokeWidth="2" strokeDasharray="2 5" strokeLinecap="round" /></svg>not connected (road closed)</span>
         <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-slate-900 ring-4 ring-sky-200" />warehouse (glows when sending)</span>
         <span>store: <b className="text-emerald-600">●</b> full · <b className="text-amber-500">●</b> most · <b className="text-rose-600">●</b> short</span>
+        {lostFlows.length > 0 && <span className="flex items-center gap-1.5"><svg width="28" height="6" aria-hidden><line x1="0" y1="3" x2="28" y2="3" stroke="#e11d48" strokeWidth="3" strokeDasharray="6 5" /></svg>connection lost in simulation</span>}
+        {altShipments.length > 0 && <span className="flex items-center gap-1.5"><svg width="34" height="12" aria-hidden><path d="M1 11 Q17 -3 33 11" fill="none" stroke="#16a34a" strokeWidth="3" /></svg>alternative connection</span>}
+        {selectedShipment && <span className="flex items-center gap-1.5"><svg width="34" height="12" aria-hidden><path d="M1 11 Q17 -3 33 11" fill="none" stroke="#16a34a" strokeWidth="3" /></svg>selected delivery</span>}
         {rainSites.length > 0 && <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-[3px] border-sky-500" />heavy rain forecast</span>}
       </div>
     </div>
@@ -210,7 +248,8 @@ export function closedRoadsFor(run: Run | null, routes: Route[]): Route[] {
   const ov = run?.network?.edit.route_overrides ?? {};
   const keptW = run?.network ? new Set(run.network.summary.warehouses_kept) : null;
   const keptD = run?.network ? new Set(run.network.summary.outlets_kept) : null;
-  const scenarioClosed = new Set(((run?.scenario.changes as { closed_routes?: string[] })?.closed_routes) ?? []);
+  const scenarioClosed = new Set([...(((run?.scenario.changes as { closed_routes?: string[] })?.closed_routes) ?? []),
+    ...(run?.chaos?.closed_routes ?? [])]);
   return routes.filter((r) => (!keptW || keptW.has(r.warehouse_id)) && (!keptD || keptD.has(r.outlet_id))
     && (scenarioClosed.has(r.route_id) || !(ov[r.route_id] ?? r.open)));
 }

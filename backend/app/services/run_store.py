@@ -58,7 +58,8 @@ def history(module: str | None, limit: int) -> tuple[list[dict], str]:
         mem = [r for r in _memory.values() if not module or r["module"] == module]
     for r in mem:
         rows.append({k: r.get(k) for k in ("plan_id", "created_at", "module", "scenario", "scenario_id", "status",
-                                           "plan_status", "fingerprint", "contested_pattern", "data_source", "version")}
+                                           "plan_status", "fingerprint", "contested_pattern", "data_source", "version",
+                                           "network", "chaos", "rescue")}
                     | {"optimizer": {"kpis": r["optimizer"]["kpis"] if r.get("optimizer") else None,
                                      "solver": r["optimizer"]["solver"] if r.get("optimizer") else None,
                                      "check": r["optimizer"]["check"] if r.get("optimizer") else None},

@@ -1,5 +1,5 @@
 // Plain-language wording used across the UI. Technical terms stay behind "details" toggles.
-import type { AllocationRow, Alternative, InsightItem, ScenarioId } from "../types/api";
+import type { AllocationRow, Alternative, DeliveryStatus, InsightItem, ScenarioId } from "../types/api";
 
 export const MODULE_LABEL: Record<string, string> = { pharmacy: "Pharmacy", grocery: "Grocery", cosmetics: "Cosmetics" };
 export const STORE_WORD: Record<string, string> = { pharmacy: "pharmacies, clinics & hospitals", grocery: "kiranas & supermarkets", cosmetics: "beauty stores, salons & department stores" };
@@ -99,3 +99,28 @@ export function uniqueInsights(items: InsightItem[], whName: (id: string) => str
   }
   return out;
 }
+
+/** Shipment = one truck trip warehouse -> store; same id the backend uses. */
+export const shipmentId = (warehouseId: string, outletId: string) => `SHP-${warehouseId}-${outletId}`;
+
+export const DELIVERY_ORDER: DeliveryStatus[] = ["approved", "dispatched", "in_transit", "delivered", "complete"];
+
+export const DELIVERY_TEXT: Record<DeliveryStatus, { label: string; tone: "violet" | "blue" | "amber" | "green" | "gray" }> = {
+  approved: { label: "Approved", tone: "violet" },
+  dispatched: { label: "Dispatched", tone: "blue" },
+  in_transit: { label: "In Transit", tone: "amber" },
+  delivered: { label: "Delivered", tone: "green" },
+  complete: { label: "Complete", tone: "gray" },
+};
+
+/** The one action available from each status (none once complete). */
+export const DELIVERY_ACTION: Partial<Record<DeliveryStatus, { label: string; to: DeliveryStatus }>> = {
+  approved: { label: "Dispatch", to: "dispatched" },
+  dispatched: { label: "Mark In Transit", to: "in_transit" },
+  in_transit: { label: "Confirm Delivery", to: "delivered" },
+  delivered: { label: "Complete", to: "complete" },
+};
+
+/** Least-advanced status among shipments (an order is only as far along as its slowest truck). */
+export const slowestStatus = (statuses: DeliveryStatus[]): DeliveryStatus | null =>
+  statuses.length ? statuses.reduce((a, b) => (DELIVERY_ORDER.indexOf(b) < DELIVERY_ORDER.indexOf(a) ? b : a)) : null;

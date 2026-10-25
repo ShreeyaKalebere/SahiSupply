@@ -2,16 +2,18 @@ import { BrainCircuit, Clock, HeartPulse, IndianRupee, Lightbulb, Package, Packa
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
+import { ChaosLauncher, ChaosReport } from "../components/ChaosMode";
 import { DeliveryTable } from "../components/DeliveryTable";
+import { useDeliveries } from "../hooks/useDeliveries";
 import { ExplanationDrawer } from "../components/ExplanationDrawer";
 import { PlanTechDetails, RuleCheckBadge } from "../components/PlanStatus";
-import { Card, Donut, ErrorBox, ProgressBar, StatCard } from "../components/ui";
+import { Card, Donut, ErrorBox, Pill, ProgressBar, StatCard } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
 import { useNetwork } from "../hooks/useNetwork";
 import { usePlanner } from "../hooks/usePlanner";
 import type { Run } from "../types/api";
 import { fmtDate, fmtInt, fmtPct, fmtRs } from "../utils/format";
-import { greeting, uniqueInsights, lineStatus, MODULE_LABEL, SCENARIO_TEXT, STATUS_TEXT, STORE_WORD } from "../utils/labels";
+import { DELIVERY_ORDER, DELIVERY_TEXT, greeting, uniqueInsights, lineStatus, MODULE_LABEL, SCENARIO_TEXT, STATUS_TEXT, STORE_WORD } from "../utils/labels";
 
 export default function OverviewPage() {
   const p = usePlanner();
@@ -30,9 +32,13 @@ export default function OverviewPage() {
             Your weekly delivery plan for {STORE_WORD[p.module] ?? "your stores"}{d ? `, week of ${fmtDate(d.planning_date)}` : ""}.
           </p>
         </div>
-        {p.run && <RuleCheckBadge run={p.run} />}
+        <div className="flex flex-wrap items-center gap-3">
+          {p.run && <RuleCheckBadge run={p.run} />}
+          <ChaosLauncher />
+        </div>
       </div>
       <ErrorBox error={dash.error} onRetry={dash.reload} />
+      {p.chaos && <ChaosReport result={p.chaos} />}
 
       {p.run?.optimizer ? <PlanSummary run={p.run} /> : (
         <>
@@ -49,7 +55,7 @@ export default function OverviewPage() {
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card title="Expiring soon" subtitle="Batches to move first" icon={Clock} className="xl:col-span-2"
-          actions={<Link to="/inventory" className="btn-link">See all stock</Link>}>
+          actions={<span className="flex gap-3"><Link to="/rescue" className="btn-link">♻️ Expiry rescue</Link><Link to="/inventory" className="btn-link">See all stock</Link></span>}>
           {risks.loading && !risks.data ? <p className="text-sm text-slate-400">Loading…</p> : (
             <ul className="divide-y divide-slate-100">
               {(risks.data?.expiry_risk ?? []).slice(0, 5).map((r) => (
@@ -128,6 +134,7 @@ function PlanSummary({ run }: { run: Run }) {
         <Card title="Plan health" subtitle={`${run.allocation.length} store orders this week`} icon={ShieldCheck}>
           <Donut center={fmtPct(k.fill_rate, 0)} centerSub="delivered"
             data={(["full", "partial", "none"] as const).map((s) => ({ label: STATUS_TEXT[s].label, value: counts[s], color: STATUS_TEXT[s].color }))} />
+          <DeliveryProgress />
           <div className="mt-4"><PlanTechDetails run={run} /></div>
         </Card>
       </div>
@@ -186,5 +193,24 @@ function SuggestionsPreview({ run }: { run: Run | null }) {
         ))}
       </ol>
     </Card>
+  );
+}
+
+/** Truck trips by delivery status (same data as the delivery table and map). */
+function DeliveryProgress() {
+  const d = useDeliveries();
+  const ships = Object.values(d.byId);
+  if (d.error) return <p className="mt-4 text-xs text-rose-600">Delivery status unavailable: {d.error.message}</p>;
+  if (!ships.length) return d.loading ? <p className="mt-4 text-xs text-slate-400">Loading delivery status…</p> : null;
+  const n = (s: (typeof DELIVERY_ORDER)[number]) => ships.filter((x) => x.status === s).length;
+  return (
+    <div className="mt-4" aria-label="Delivery progress">
+      <div className="mb-2 text-xs font-medium text-slate-500">Truck trips ({ships.length})</div>
+      <div className="flex flex-wrap gap-1.5">
+        {DELIVERY_ORDER.map((s) => (
+          <Pill key={s} tone={DELIVERY_TEXT[s].tone}>{DELIVERY_TEXT[s].label} · {n(s)}</Pill>
+        ))}
+      </div>
+    </div>
   );
 }

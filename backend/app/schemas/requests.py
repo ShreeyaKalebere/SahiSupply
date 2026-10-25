@@ -47,6 +47,23 @@ class OverrideRequest(_Req):
     actor: str | None = Field(default=None, max_length=80)
 
 
+class ChaosRequest(_Req):
+    kind: Literal["warehouse_offline", "demand_surge", "road_closed", "supplier_delay", "fuel_cost"]
+    warehouse_id: str | None = Field(default=None, pattern=r"^W\d{1,4}$")
+    route_id: str | None = Field(default=None, pattern=r"^W\d{1,4}-D\d{1,4}$")
+    region: str | None = Field(default=None, max_length=80)
+
+
+class SimulationRequest(RunRequest):
+    """Chaos / rescue run: same settings as a normal run, plus the plan to compare against."""
+    before_plan_id: str | None = Field(default=None, pattern=r"^PLN-[A-Z0-9]{6,20}$")
+    chaos: ChaosRequest | None = None
+
+
+class DeliveryStatusRequest(_Req):
+    status: Literal["dispatched", "in_transit", "delivered", "complete"]
+
+
 class ChatMessage(_Req):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=2000)

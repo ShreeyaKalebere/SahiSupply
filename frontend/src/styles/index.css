@@ -50,3 +50,13 @@
 
 /* Clickable warehouse markers on the map open the warehouse popup. */
 .warehouse-marker { cursor: pointer; }
+
+/* Selected delivery: its trucks turn green (yellow sprite hue-shifted) without moving. */
+.truck-selected .truck-sprite { filter: hue-rotate(75deg) saturate(1.8) drop-shadow(0 0 3px #16a34a); }
+.truck-selected .truck-dot { background: #22c55e; border-color: #15803d; }
+.truck-selected { z-index: 1000 !important; }
+
+/* Chaos Mode: connections lost to the disruption march like broken links. */
+.lost-lane { animation: lost-dash 0.9s linear infinite; }
+@keyframes lost-dash { to { stroke-dashoffset: -28; } }
+@media (prefers-reduced-motion: reduce) { .lost-lane { animation: none; } }
