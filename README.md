@@ -2,50 +2,402 @@
 
 **Right Product. Right Place. Right Time.**
 
-SahiSupply is an explainable distribution-planning workspace. It decides which product **batches** go to which
-destinations and how much to ship, checks shelf life **on arrival**, verifies every plan with an
-**independent checker**, explains each line ("why this warehouse, why not that one"), and measures the plan
-against a spreadsheet-style **greedy baseline** on identical, fingerprinted data.
+SahiSupply is an explainable, expiry-aware **distribution-planning platform** for multi-warehouse networks. Every
+week it decides **which product batch goes to which store and how much**, while respecting stock, warehouse and
+road capacity, cold-chain storage and shelf life **on arrival**. It also handles what happens after planning:
+drivers deliver with photo proof, warehouse staff watch expiry alerts, and planners stress-test the network with
+controlled disaster simulations.
 
-One engine serves three industry modules defined in YAML:
+| | |
+|---|---|
+| **Web dashboard** (planners, ops managers) | Make the weekly plan, see why each store gets what it gets, run what-ifs, Chaos Mode and Expiry Rescue, track deliveries on an animated map, explore any warehouse in 3D |
+| **Mobile field app** (drivers, warehouse staff) | Android app: today's trips, Dispatch → Confirm Delivery with a photo, warehouse expiry/stock alerts, 3D warehouse view |
+| **Planning engine** (FastAPI + OR-Tools) | Forecast → net need → batch-level MILP → independent checker → explanations, on fingerprinted data |
+
+One engine serves three industry modules, each defined in YAML (`configs/`):
 
 | Module | Destinations | Need source | Enforced rules |
 |---|---|---|---|
 | Grocery Retail | kirana stores, supermarkets | open orders (rationing) | G1 ≥ 3 days life on arrival; FEFO tie-break |
-| Cosmetics Retail | beauty stores, salons, department stores | forecast | K1 ≥ 30% of shelf life on arrival; K2 cool storage for sensitive skincare; K3 FEFO tie-break |
+| Cosmetics Retail | beauty stores, salons, department stores | forecast | K1 ≥ 30% shelf life on arrival; K2 cool storage for sensitive skincare; K3 FEFO |
 | Pharmaceuticals | pharmacies, clinics, hospitals | forecast | C1 ≥ 90 days on arrival; C2 critical shortage weight 10; C3 2-8 °C storage match; C4 80% equity floor (optional) |
 
-> **All data is synthetic** (seed 42). Thresholds are configurable design settings, not regulatory rules. No
-> regulatory compliance, clinical guidance or real-world impact is claimed.
-> **Database:** MongoDB replaces the PRD's SQLite throughout.
+> **All operational data is synthetic** (seed 42): warehouses, stock, demand, prices and companies are a sample,
+> not any real company's. The only live external data is the **weather forecast** (Open-Meteo). Rule thresholds
+> are configurable design settings, not regulatory advice. Chaos Mode is a **controlled simulation**, not
+> real-time disruption detection.
 
-The product spec is [`Asteroid_PS2_SahiSupply_PRD.md`](Asteroid_PS2_SahiSupply_PRD.md). See also
-[docs/architecture.md](docs/architecture.md), [docs/api.md](docs/api.md), [data/README.md](data/README.md),
-[validation/results.md](validation/results.md) (measured numbers) and [validation/log.md](validation/log.md).
+Product spec: [`Asteroid_PS2_SahiSupply_PRD.md`](Asteroid_PS2_SahiSupply_PRD.md) (MongoDB replaces the PRD's
+SQLite; Cosmetics replaced the PRD's Food Distribution module). More detail: [docs/architecture.md](docs/architecture.md),
+[docs/api.md](docs/api.md), [data/README.md](data/README.md), [validation/results.md](validation/results.md).
 
 ---
 
-## Prerequisites
+## Contents
 
-* Python 3.11+ (tested with 3.11.8)
-* Node.js 20+ and npm (tested with Node 25.2, npm 11.6)
-* MongoDB 7+ running locally, **or** a MongoDB Atlas cluster (tested with local MongoDB 8.2.5)
-* Optional: Docker Desktop (the Dockerfiles and Compose file are provided but were **not** built in this
-  environment because the Docker daemon was not running)
+1. [System architecture](#1-system-architecture)
+2. [Features](#2-features)
+3. [Who uses what](#3-who-uses-what)
+4. [Tech stack](#4-tech-stack)
+5. [Repository layout](#5-repository-layout)
+6. [Getting started](#6-getting-started)
+7. [Mobile app (Android APK)](#7-mobile-app-android-apk)
+8. [API reference](#8-api-reference)
+9. [Testing and validation](#9-testing-and-validation)
+10. [Demo walkthrough](#10-demo-walkthrough)
+11. [Limitations and roadmap](#11-limitations-and-roadmap)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Credits](#13-credits)
 
-## 1. Configure MongoDB
+---
+
+## 1. System architecture
+
+### 1.1 High-level view
+
+```mermaid
+flowchart LR
+  subgraph Clients
+    WEB["Web dashboard<br/>React + Vite<br/>(planner / ops manager)"]
+    APP["Android field app<br/>Capacitor WebView<br/>(driver / warehouse staff)"]
+  end
+
+  subgraph Backend["FastAPI backend (Python 3.11)"]
+    API["REST API /api/*<br/>Pydantic validation, CORS,<br/>error envelope, metrics"]
+    PLAN["Planning service<br/>forecast → net need →<br/>MILP + baseline → checker"]
+    SIM["Simulation service<br/>Chaos Mode · Expiry Rescue"]
+    DEL["Delivery service<br/>status state machine ·<br/>photo proof"]
+    VIEW["Views<br/>inventory · risks ·<br/>warehouse details"]
+    AST["Assistant<br/>Claude or built-in"]
+  end
+
+  subgraph Data
+    MDB[("MongoDB<br/>sahisupply")]
+    YAML["configs/*.yaml<br/>industry modules"]
+  end
+
+  subgraph External
+    OM["Open-Meteo<br/>rain forecast"]
+    CL["Anthropic API<br/>(optional)"]
+    OSM["OpenStreetMap tiles"]
+  end
+
+  WEB -- "HTTP / JSON (Vite proxy)" --> API
+  APP -- "HTTP / JSON over LAN" --> API
+  API --> PLAN & SIM & DEL & VIEW & AST
+  SIM --> PLAN
+  PLAN --> MDB
+  DEL --> MDB
+  VIEW --> MDB
+  PLAN --> YAML
+  API --> OM
+  AST --> CL
+  WEB -. map tiles .-> OSM
+  APP -. map tiles .-> OSM
+```
+
+The web and mobile clients are **one React codebase**: the desktop dashboard lives under `/`, the field screens
+under `/m`, and Capacitor packages the same build as an Android app that opens on `/m`. Both talk to the same
+FastAPI backend, so a delivery confirmed on a phone shows up on the dashboard and map at once.
+
+### 1.2 Backend layers
+
+```mermaid
+flowchart TB
+  subgraph L1["API layer · backend/app/api"]
+    A1[system.py<br/>health, modules, config, scenarios]
+    A2[network.py<br/>warehouses, outlets, routes,<br/>inventory, risks, forecast, weather]
+    A3[optimization.py<br/>runs, history, explanations,<br/>overrides, deliveries, export]
+    A4[simulation.py<br/>chaos, rescue]
+    A5[assistant.py<br/>chat]
+  end
+  subgraph L2["Service layer · backend/app/services"]
+    S1[planner.py<br/>run orchestration]
+    S2[delivery_status.py]
+    S3[views.py · warehouse_details.py]
+    S4[data_service.py<br/>dataset + snapshot fallback]
+    S5[run_store.py<br/>Mongo or in-memory]
+    S6[kpis.py · live_weather.py · assistant.py]
+  end
+  subgraph L3["Domain layer"]
+    D1[forecasting/<br/>naive, MA, gradient boosting]
+    D2[inventory/<br/>net need, eligibility, problem]
+    D3[optimization/<br/>MILP, greedy baseline, checker,<br/>explanations, insights, regret, rescue]
+    D4[scenarios/<br/>S0-S4, network edits, chaos]
+    D5[modules/<br/>YAML schema, rule resolution]
+  end
+  subgraph L4["Data layer · backend/app/database"]
+    R1[connection.py · indexes.py]
+    R2[repositories/]
+  end
+  L1 --> L2 --> L3
+  L2 --> L4
+```
+
+### 1.3 Planning pipeline (one run)
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant UI as Dashboard / App
+  participant API as FastAPI
+  participant P as planner.run_plan
+  participant DB as MongoDB
+  participant F as Forecaster
+  participant M as OR-Tools (SCIP)
+  participant C as Independent checker
+
+  UI->>API: POST /api/optimization/run {module, scenario, rules, network}
+  API->>P: validate request (Pydantic)
+  P->>DB: load dataset (warehouses, batches, routes, demand, orders)
+  P->>P: apply scenario S0-S4 → network edits → chaos (private copy)
+  P->>F: forecast demand (cached model per module)
+  P->>P: net need per store × product, eligibility per batch × store<br/>(life on arrival, storage class, road open)
+  P->>P: SHA-256 fingerprint of the exact inputs
+  P->>M: batch-level MILP (min transport cost + shortage penalty)
+  P->>P: greedy "manual" baseline on the same inputs
+  P->>C: check both plans (stock, capacity, roads, shelf life, storage, KPIs)
+  C-->>P: valid / violations
+  P->>P: KPIs, explanations, insights, regret
+  P->>DB: save run (optimization_runs)
+  P-->>UI: plan + KPIs + explanations + check result
+```
+
+**MILP formulation (simplified).** Decision `x[b,d]` = units of batch *b* shipped to store *d* (integer), `u[d,p]`
+= unmet need. Minimise `Σ unit_cost·x + Σ π_p·u + ε·FEFO` subject to: batch stock, `Σ x + u = need`, warehouse
+outbound capacity, store receiving and cold capacity, road capacity, optional equity floor, and eligibility (only
+batches with enough life on arrival and the right storage class have variables at all). π_p (shortage penalty)
+is larger than any delivery cost and weighted by criticality, so the solver always prefers shipping to leaving a
+store short. Expiry Rescue adds a reward equal to the write-off value for units shipped from at-risk batches.
+The **checker shares no code with the optimizer** and re-derives every constraint from raw inputs.
+
+### 1.4 Data model (MongoDB)
+
+```mermaid
+erDiagram
+  modules ||--o{ warehouses : has
+  modules ||--o{ outlets : has
+  modules ||--o{ products : has
+  warehouses ||--o{ batches : stores
+  products ||--o{ batches : "is batch of"
+  warehouses ||--o{ routes : "road to"
+  outlets ||--o{ routes : "road from"
+  outlets ||--o{ demand_history : records
+  outlets ||--o{ open_orders : places
+  outlets ||--o{ outlet_inventory : holds
+  optimization_runs ||--o{ plan_overrides : "edited by"
+  optimization_runs ||--o{ delivery_status : "tracks shipments"
+  delivery_status ||--o| delivery_proofs : "proven by"
+
+  batches { string batch_id string product_id string warehouse_id int quantity date expiry_date }
+  routes { string route_id float cost_per_litre int lead_time_days float capacity_l bool open }
+  optimization_runs { string plan_id string module string fingerprint string status object optimizer object baseline object chaos object rescue }
+  delivery_status { string plan_id string shipment_id string status array history }
+  delivery_proofs { string plan_id string shipment_id string photo string note }
+```
+
+| Collection | Contents |
+|---|---|
+| `modules`, `dataset_meta`, `calendars` | module registry, dataset SHA-256 and planning date |
+| `warehouses`, `outlets`, `products`, `batches`, `routes` | the network and stock (per module; routes in contested/uncontested variants) |
+| `demand_history`, `open_orders`, `outlet_inventory` | 32,400 demand rows, orders and store stock |
+| `optimization_runs` | every plan (normal, scenario, chaos, rescue) with inputs, KPIs, check result, explanations |
+| `plan_overrides` | validated manual changes with reason and actor |
+| `forecast_runs` | forecast backtest metrics per dataset fingerprint |
+| `delivery_status` | shipment status + history (unique on `plan_id, shipment_id`) |
+| `delivery_proofs` | proof-of-delivery photo (compressed JPEG data URL) and note |
+
+If MongoDB is down the API keeps working on a labelled **snapshot fallback** and an in-memory run store
+(`persisted: false` in responses).
+
+### 1.5 Delivery lifecycle
+
+A **shipment** is one truck trip from one warehouse to one store: `SHP-{warehouse}-{store}` (e.g. `SHP-W1-D2`).
+Status only moves forward, one step at a time; the backend rejects anything else (`409 INVALID_TRANSITION`) and
+updates are conditional on the status read, so two taps can't both advance it.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Approved: plan passes checker
+  Approved --> Dispatched: Dispatch
+  Dispatched --> InTransit: Mark In Transit
+  InTransit --> Delivered: Confirm Delivery (+ photo in app)
+  Delivered --> Complete: Complete
+  Complete --> [*]
+```
+
+### 1.6 Simulations
+
+```mermaid
+flowchart LR
+  BASE["Current plan<br/>(before)"] --> CMP{{"plan_diff + KPIs"}}
+  subgraph Chaos["Chaos Mode"]
+    K["Pick disaster:<br/>warehouse offline · demand +50% ·<br/>road closed · supplier delay · fuel +30%"]
+    K --> COPY["Apply to private data copy"]
+    COPY --> RP["Same pipeline:<br/>forecast → MILP → checker"]
+  end
+  subgraph Rescue["Expiry Rescue"]
+    AR["At-risk batches<br/>(fail shelf-life rule by next cycle)"] --> RB["MILP + write-off reward<br/>(rules unchanged)"]
+  end
+  RP --> CMP
+  RB --> CMP
+  CMP --> OUT["Before/after KPIs · shortages ·<br/>delayed deliveries · changed allocations ·<br/>lost / alternative lanes on map"]
+  OUT --> RESET["Reset Scenario<br/>restores original plan"]
+  OUT --> EXEC["Execute Rescue Plan<br/>adopts rescue plan"]
+```
+
+Stored operational data is never modified. If no feasible plan exists, the response says so and lists remaining
+shortages and checker violations; no recovery is claimed.
+
+### 1.7 Deployment (demo setup)
+
+```mermaid
+flowchart LR
+  subgraph PC["Laptop / server"]
+    MG[("MongoDB :27017")]
+    BE["uvicorn :8000<br/>--host 0.0.0.0"]
+    FE["Vite dev :5173<br/>(or built UI served by backend)"]
+  end
+  BR["Browser"] --> FE --> BE --> MG
+  PH["Android phone<br/>SahiSupply APK"] -- "Wi-Fi / PC hotspot<br/>http://&lt;PC-IP&gt;:8000" --> BE
+```
+
+Docker files (`Dockerfile`, `docker-compose.yml`) are provided; Atlas works by setting `MONGODB_URI`.
+
+---
+
+## 2. Features
+
+### Planning and explainability
+* **Config-driven industry switch**: Grocery, Cosmetics, Pharmacy from strict YAML (no `eval`).
+* **Forecasting**: seasonal naive, 28-day moving average and gradient boosting, chosen by rolling backtest
+  (MAE / RMSE / WAPE, noise floor).
+* **Net need** in forecast or open-orders mode, with safety stock by criticality.
+* **Batch-level MILP** (OR-Tools SCIP) with shelf-life-on-arrival, storage-class, FEFO, critical weighting and an
+  optional equity floor; **greedy baseline** ("manual planning") on identical, fingerprinted data.
+* **Independent checker** on every plan; invalid plans are labelled, never shown as valid.
+* **Why / why-not explanations** for every line and shortage ("road closed", "fridge full", "expires too soon").
+* **Smart suggestions**: value of one more unit of capacity (LP duals rank, MILP re-solves measure).
+* **Overrides**: manual edits are re-checked; refused with the reason or saved and logged.
+* **Scenarios S0-S4** (festival spike, warehouse outage, monsoon closure, cold-room failure) and a
+  **network builder** (toggle warehouses/stores, open/close individual roads).
+* **CSV / print export** of the pick list in FEFO order.
+
+### Operations
+* **Delivery status tracking** with colour-coded badges (Approved, Dispatched, In Transit, Delivered, Complete)
+  and action buttons in the delivery table, the map list and the mobile app; dashboard summary of truck trips.
+* **Animated network map** (Leaflet): small yellow trucks drive along curved, fading arcs; closed roads are red
+  dotted; **select a delivery to highlight only its truck and route in green**.
+* **Warehouse popup + 3D warehouse**: click a warehouse for stock, simulated capacity, utilisation, stock-out
+  risks and expiring batches; **View 3D Warehouse** opens a lazy-loaded three.js interior themed per industry
+  (pallet racking, beauty shelving, GDP shelving with a 2-8 °C cold room), built from that warehouse's real batches,
+  with a quarantine cage, loading dock truck, forklift, zone presets and tap-a-shelf details. 2D plan fallback.
+* **Live weather** (Open-Meteo): 7-day rain forecast per site; roads at heavy-rain sites can be closed and re-planned.
+* **Ask SahiSupply** assistant on every page, grounded in the current plan (Claude when `ANTHROPIC_API_KEY` is set,
+  otherwise a built-in assistant).
+
+### Resilience and waste
+* **⚡ Chaos Mode**: *SIMULATE DISASTER* on the dashboard with five disruptions, user-chosen warehouse/road/region,
+  full re-plan, before/after KPIs, explanation of the optimizer's response, remaining shortages, delayed deliveries,
+  changed allocations, lost (animated red) and alternative (green) lanes on the map, and **Reset Scenario**.
+* **♻️ Expiry Rescue Mission**: at-risk batches ranked by urgency with value at risk, re-planned through the
+  optimizer to ship them first; waste avoided, value recovered, before/after KPIs, per-batch actions (dispatch,
+  reallocate, transfer suggestion, write-off review); **Execute Rescue Plan** adopts it. Expired stock is never shipped.
+
+### Mobile field app
+* **Driver**: depot picker, trips on a map, product lines per trip, step-by-step status, **mandatory photo proof**
+  on Confirm Delivery (compressed on the phone, stored in MongoDB), view proof later.
+* **Warehouse**: expiring, blocked and stock-out alerts, low stock after the plan, utilisation, 3D warehouse.
+* **Settings**: server address with connection test.
+
+---
+
+## 3. Who uses what
+
+| Person | Uses | For |
+|---|---|---|
+| Planner / operations manager | Web dashboard | Weekly plan, explanations, what-ifs, Chaos Mode, Expiry Rescue, approvals |
+| Delivery driver | Mobile app → Driver | Today's trips, Dispatch → Confirm Delivery with photo |
+| Warehouse staff / manager | Mobile app → Warehouse | Expiry and stock alerts, 3D shelf lookup |
+| Store (future) | — | Receives goods; proof photo is the hand-over record |
+
+---
+
+## 4. Tech stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite 6, Tailwind CSS 3, Recharts, Leaflet / react-leaflet, three.js, lucide-react |
+| Mobile | Capacitor 6 (Android), same React build, camera via `<input capture>` |
+| Backend | Python 3.11, FastAPI, Pydantic, Uvicorn |
+| Optimization | Google OR-Tools (SCIP MILP, GLOP LP duals) |
+| Forecasting | scikit-learn HistGradientBoosting, NumPy, pandas |
+| Database | MongoDB 7+ (PyMongo), JSON-schema validators, indexes |
+| AI (optional) | Anthropic Claude API for the assistant |
+| Testing | pytest + Hypothesis, Vitest + React Testing Library, ruff, tsc |
+| External data | Open-Meteo (weather), OpenStreetMap (tiles) |
+
+---
+
+## 5. Repository layout
+
+```
+SahiSupply/
+├── backend/
+│   ├── app/
+│   │   ├── api/            # FastAPI routers: system, network, optimization, simulation, assistant
+│   │   ├── services/       # planner, delivery_status, views, warehouse_details, kpis, run_store, ...
+│   │   ├── forecasting/    # forecasters + backtest
+│   │   ├── inventory/      # net need, eligibility, PlanningProblem
+│   │   ├── optimization/   # MILP model, baseline, checker, explanations, insights, regret, rescue
+│   │   ├── scenarios/      # S0-S4 definitions, custom network edits, chaos disruptions
+│   │   ├── modules/        # YAML config loader and rule resolution
+│   │   ├── database/       # Mongo connection, indexes, repositories
+│   │   ├── data/           # deterministic synthetic data generator + catalogs
+│   │   └── main.py         # app, middleware, error handlers, static UI
+│   ├── scripts/            # seed_database, benchmark, export_snapshot
+│   └── tests/
+├── frontend/
+│   ├── src/
+│   │   ├── pages/          # dashboard pages (Overview, Planner, Map, Rescue, Scenarios, ...)
+│   │   ├── components/     # NetworkMap, DeliveryTable, ChaosMode, warehouse/ (3D), ...
+│   │   ├── mobile/         # field app: MobileApp, DriverView, WarehouseView
+│   │   ├── hooks/          # usePlanner, useDeliveries, useNetwork, useAsync
+│   │   ├── api/client.ts   # typed API client (runtime-configurable server address)
+│   │   └── types/api.ts
+│   ├── public/models/      # delivery_truck.glb
+│   ├── android/            # Capacitor Android project
+│   └── capacitor.config.json
+├── configs/                # grocery.yaml, cosmetics.yaml, pharmacy.yaml
+├── data/  docs/  validation/
+├── Dockerfile  docker-compose.yml
+└── .env.example
+```
+
+---
+
+## 6. Getting started
+
+### Prerequisites
+* Python 3.11+, Node.js 20+ and npm
+* MongoDB 7+ locally, or a MongoDB Atlas cluster
+* For the APK: JDK 17 and the Android SDK
+* Optional: Docker Desktop
+
+### 1) Configure
 
 ```bash
 cp .env.example .env
 ```
 
-* **Local:** keep `MONGODB_URI=mongodb://localhost:27017`.
-* **Atlas:** create a cluster and a database user, allow your IP, then set
-  `MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`.
-  Never commit `.env`.
-* `MONGODB_DB` defaults to `sahisupply`; tests always use `sahisupply_test` and drop it before seeding.
+* **Local MongoDB:** keep `MONGODB_URI=mongodb://localhost:27017`.
+* **Atlas:** `MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`
+  (allow your IP in Network Access). Never commit `.env`.
+* `MONGODB_DB` defaults to `sahisupply`; tests use `sahisupply_test`.
+* Optional: `ANTHROPIC_API_KEY` for the Claude assistant.
+* `CORS_ORIGINS` must include `http://localhost` for the Android app (already in `.env.example`).
 
-## 2. Install
+### 2) Install
 
 ```bash
 pip install -r backend/requirements-dev.txt
@@ -55,34 +407,29 @@ pip install -r backend/requirements-dev.txt
 npm --prefix frontend install
 ```
 
-## 3. Seed the synthetic data
+### 3) Seed the synthetic data
 
 ```bash
 cd backend && python -m scripts.seed_database
 ```
 
-This creates collections, JSON-schema validators and indexes, then loads all three modules (warehouses,
-outlets, products, ~135 batches, 60 routes in both contested/uncontested variants, 32,400 demand rows,
-orders, outlet stock). Re-running replaces each module's data; it never duplicates.
+Creates collections, validators and indexes, then loads all three modules. Re-running replaces data; it never
+duplicates.
 
-## 4. Run
-
-Backend (from the repo root):
+### 4) Run
 
 ```bash
 python -m uvicorn app.main:app --app-dir backend --port 8000
 ```
 
-Frontend dev server (proxies `/api` to port 8000):
-
 ```bash
 npm --prefix frontend run dev
 ```
 
-Open http://localhost:5173. API docs: http://localhost:8000/docs. If `frontend/dist` exists
-(`npm --prefix frontend run build`), the backend also serves the built UI at http://localhost:8000.
+Open http://localhost:5173 (API docs: http://localhost:8000/docs). After `npm --prefix frontend run build` the
+backend also serves the built UI at http://localhost:8000. The field screens work in any browser at `/m`.
 
-### Docker (not verified here)
+### Docker (not verified in the build environment)
 
 ```bash
 docker compose up -d --build
@@ -92,9 +439,58 @@ docker compose up -d --build
 docker compose run --rm seed
 ```
 
-Then open http://localhost:8000.
+---
 
-## 5. Tests
+## 7. Mobile app (Android APK)
+
+### Build
+
+```bash
+cd frontend && npm run build && npx cap sync android
+```
+
+```bash
+cd frontend/android && ./gradlew assembleDebug
+```
+
+The APK is written to `frontend/android/app/build/outputs/apk/debug/app-debug.apk` (not committed).
+
+### Connect a phone
+
+1. Start the backend so the phone can reach it:
+   ```bash
+   python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000
+   ```
+2. Allow inbound TCP 8000 (Windows: in an **administrator** PowerShell):
+   ```powershell
+   New-NetFirewallRule -DisplayName "SahiSupply 8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Any
+   ```
+3. Put the phone on the same Wi-Fi as the PC, or on the PC's mobile hotspot (`192.168.137.1` on Windows).
+4. Install the APK, open **SahiSupply**, enter `http://<PC-IP>:8000` and tap **Test & save**.
+
+Campus/office Wi-Fi often blocks device-to-device traffic; the PC hotspot avoids that.
+
+---
+
+## 8. API reference
+
+All responses use `{ "data": ..., "meta": { "synthetic_data": true, ... } }`; errors use
+`{ "error": { "code", "message", "details" } }`. Interactive docs at `/docs`.
+
+| Area | Endpoints |
+|---|---|
+| System | `GET /api/health` · `GET /api/metrics` · `GET /api/modules` · `GET /api/config/{module}` · `GET /api/scenarios` |
+| Network & stock | `GET /api/dashboard` · `/api/warehouses` · `/api/warehouses/{id}/details` · `/api/outlets` · `/api/products` · `/api/routes` · `/api/inventory` · `/api/risks` |
+| Forecast | `POST /api/forecast/train` · `POST /api/forecast/predict` · `GET /api/forecast/metrics` · `GET /api/evaluation` |
+| Live data | `GET /api/live/weather` |
+| Planning | `POST /api/optimization/run` · `GET /api/optimization/history` · `GET /api/optimization/{plan_id}` · `/explanations` · `/insights` · `POST /override` · `GET /overrides` · `GET /export.csv` · `POST /api/scenarios/run` |
+| Deliveries | `GET /api/optimization/{plan_id}/deliveries` · `POST .../deliveries/{shipment_id}/status` (`status`, optional `proof_photo`, `note`) · `GET .../deliveries/{shipment_id}/proof` |
+| Simulations | `GET /api/chaos/kinds` · `POST /api/chaos/run` · `POST /api/rescue/run` |
+| Assistant | `GET /api/assistant/status` · `POST /api/assistant/chat` |
+
+---
+
+## 9. Testing and validation
 
 ```bash
 cd backend && python -m pytest
@@ -112,138 +508,74 @@ npm --prefix frontend test
 cd backend && python -m scripts.benchmark
 ```
 
-### Results recorded in this environment (2026-10-24)
+Last recorded results (2026-10-24, before delivery tracking, Chaos Mode, Expiry Rescue and the mobile app were added):
 
-The PRD's Food Distribution module was replaced by **Cosmetics Retail** at the product owner's request; the PRD file itself is unchanged.
-
-| Suite | Result |
+| Check | Result |
 |---|---|
-| Backend `pytest` (unit, optimizer, checker incl. 60 Hypothesis examples, explanations/insights, API integration against MongoDB, 10-seed harness) | **64 passed** |
-| Correctness gate `-m slow`: 100 seeds × S0-S4 × 3 modules = 1,500 runs | **0 checker violations** for optimizer and baseline; max solve 1.65 s, all OPTIMAL/FEASIBLE (cosmetics re-run after it replaced Food Distribution) |
-| Stress test 10 warehouses × 48 outlets × 30 products | OPTIMAL in **1.06 s**, gap 0.04% |
-| Frontend Vitest + React Testing Library | **8 passed** |
-| `ruff check backend`, `tsc --noEmit`, `vite build` | clean |
-| Demo-size solve time (20 runs) | p50 **0.05 s**, p95 **0.08 s** (targets < 2 s / < 5 s) |
-| Forecast WAPE vs seasonal naive | −26.6% pharmacy, −25.5% grocery, −26.0% cosmetics (gradient boosting selected in all three; target ≥ 10%) |
-| North-star (≥ +5 pp fill under disruption in ≥ 2 of S1-S3, pattern on) | met in all three modules; **0/3 with the pattern off** in every module |
+| Backend `pytest` (incl. warehouse details) | 91 passed (4 slow deselected) |
+| Frontend Vitest | 16 passed |
+| Correctness gate: 100 seeds × S0-S4 × 3 modules | 0 checker violations (optimizer and baseline) |
+| Stress test 10 warehouses × 48 outlets × 30 products | OPTIMAL in 1.06 s |
+| Demo-size solve time | p50 0.05 s, p95 0.08 s |
+| Forecast WAPE vs seasonal naive | −26.6% pharmacy, −25.5% grocery, −26.0% cosmetics |
+| North-star (≥ +5 pp fill under disruption in ≥ 2 of S1-S3) | met in all three modules with the contested pattern on |
 
-Misses and caveats (from `validation/results.md`): in pharmacy S2 the optimizer's overall fill rate is
-1.3 pp (pattern on) and 4.5 pp (pattern off) **below** the baseline because C2 prioritises critical
-medicines (its critical shortage is lower); cost per delivered unit is often higher than the baseline's
-(+5% target not met everywhere) because the optimizer serves remote outlets the baseline leaves short;
-expiry-risk units do not fall by 10% in every module/scenario; with the contested-supply pattern off, the
-gains are 1-5 pp. A full UI acceptance pass was run in the in-app browser (see Demo below); end-to-end
-browser tests are not automated.
+The features added afterwards (delivery tracking, Chaos Mode, Expiry Rescue, mobile app) were checked manually
+and do not yet have automated tests. Known misses (see `validation/results.md`): in pharmacy S2 the overall fill
+rate is below the baseline because critical medicines are prioritised; cost per delivered unit is sometimes higher
+because remote stores are served.
 
-## Demo workflow (≈ 3 minutes)
+---
 
-The UI uses plain language; technical numbers sit behind "Show technical details" links. Press **?** in
-the header (or "How it works" in the sidebar) for a 3-step explanation and a glossary.
+## 10. Demo walkthrough
 
-1. **Pharmacy → Run plan.** The **Dashboard** shows orders delivered vs manual planning, units short,
-   critical medicines short, delivery cost, a "Plan health" donut and an "All rules checked" badge.
-2. **Needs your attention** → click *Chandrapur Rural Clinic · Human Insulin*. The **Why?** panel shows
-   Needed / Sending / Short and explains each warehouse in one sentence (fridge full, road closed, stock
-   already sent to another store, expires too soon...).
-3. In the panel, open **change this delivery** and ask for more than is possible → the change is refused
-   with the reason; a valid change is saved and logged.
-4. **Smart suggestions**: e.g. "Add fridge space at Gadchiroli Primary Clinic - 14 fewer critical shortages",
-   each tested by re-making the plan.
-5. **What-if → Monsoon road closures**: before/after delivered %, what changed, and the stores hit hardest.
-6. **vs. Manual planning**: side-by-side cards, value in ₹ (sample prices), and what your rules prevent.
-7. **Rules & settings**: switch a rule off (e.g. "Fresh on arrival") and run again to see its effect.
-7b. **Network builder**: switch warehouses and stores on/off and click roads in the grid to close or open them, then
-   *Run plan with this network* - e.g. open Nagpur → Chandrapur and watch that store go from 34% to 58% supplied.
-8. Switch to **Grocery** and **Cosmetics** and run a plan in each.
-9. **Download plan**: pick list as CSV, or print view.
-10. **Past plans**: every plan is read back from MongoDB.
+1. **Pharmacy → Run plan.** Dashboard: delivered %, units short, critical shortages, cost, plan health.
+2. **Needs your attention** → click a row → **Why?** panel explains each warehouse in one sentence.
+3. **Delivery plan**: use **Dispatch** / **Confirm Delivery** in the Delivery column.
+4. **Map**: click a delivery → its truck and route turn green; click a warehouse → popup → **View 3D Warehouse**.
+5. **⚡ SIMULATE DISASTER** → *Warehouse goes offline* → see shortages, re-routing and the animated map;
+   **Reset Scenario**.
+6. **Expiry rescue** → *Find & rescue* → waste avoided and value recovered → **Execute Rescue Plan**.
+7. **Phone**: open the app → Driver → Dispatch → In Transit → take a photo → **Confirm Delivery**; the dashboard
+   updates. Warehouse tab → alerts → **View 3D Warehouse**.
+8. Also: What-if scenarios, Network builder, Smart suggestions, vs. Manual planning, Download plan, Past plans,
+   Ask SahiSupply.
 
-## Implemented
+---
 
-* P0-01 config-driven industry switch (strict YAML schema, fixed template registry, no `eval`)
-* P0-02 deterministic generator (SHA-256 identical per seed), synthetic labels, contested pattern on/off
-* P0-03 forecasting: seasonal naive, 28-day MA, HistGradientBoosting; rolling backtest 4×14; MAE/RMSE/WAPE; noise floor
-* P0-04 net need (forecast and orders modes) with hand-calculated fixtures; stockout/expiry/shortfall flags
-* P0-05 batch-level MILP (OR-Tools SCIP) with G1, F1, C1, C2 (+ F2, C3, C4)
-* P0-06 independent checker and typed input validation; 100-seed gate
-* P0-07 greedy baseline, ₹ impact, scenarios S0-S3 (+ S4)
-* P0-08 why / why-not explanations per line and per shortage
-* P0-09 value-of-one-more-unit insights (GLOP duals rank, SCIP re-solves measure, checker reproduces)
-* P0-10 planner workspace (11 views, plain-language UI, mobile bottom navigation) with real API data only
-* P0-11 CSV / print export in FEFO order; validated, logged overrides
-* Network builder: user-chosen warehouses/stores and per-road open/close, applied to the data before planning and
-  verified by the checker (`backend/app/scenarios/custom.py`)
-* **Ask SahiSupply** chat assistant on every page, grounded in the current plan (`backend/app/services/assistant.py`).
-  Uses Claude (`claude-opus-5-5`, server-side refusal fallback enabled) when `ANTHROPIC_API_KEY` is set; otherwise a
-  built-in assistant answers from the same plan data (store-level "why short", suggestions, terms, pages)
-* **Live weather (real data)**: 7-day rainfall forecast from Open-Meteo for every warehouse/store; roads touching a site
-  at or above the threshold (default 64.5 mm/day, IMD "heavy rain") can be closed and the plan re-made (What-if page).
-  Only the weather is live; stock and demand remain synthetic. If the service is unreachable the API returns 503 - no
-  weather is invented
-* Animated maps: small 3D delivery trucks drive slowly along curved, fading arcs from warehouse to store; sending
-  warehouses pulse; closed/unconnected roads are red dotted lines. The truck is rendered from
-  `frontend/public/models/delivery_truck.glb` with three.js (16 headings, loaded on demand).
-  **Model credit:** "Delivery Truck" by [Jasmin Daniel](https://sketchfab.com/jasmin.daniel),
-  [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/) - also shown in the map attribution
-* **Warehouse popup + interactive 3D warehouse** (Map page): click a warehouse marker for its stock, simulated
-  capacity and utilisation, stockout risks, expiring/blocked batches and products
-  (`GET /api/warehouses/{id}/details`). **View 3D Warehouse** opens a three.js scene (lazy-loaded) with an
-  industry-specific interior - Grocery pallet racking, Cosmetics beauty shelving, Pharmacy GDP shelving with a
-  2-8 °C cold room - built from that warehouse's real batches: one bay per batch slot, status tags, a quarantine
-  cage for blocked batches, loading dock with the GLB truck, and an animated forklift. Orbit/zoom/pan, zone camera
-  presets, and click a shelf (or a product in the list) for batch, quantity, expiry and eligibility. Racks, pallets
-  and cartons are instanced (about a dozen draw calls). A 2D plan is used when WebGL is unavailable. Rack/bin
-  positions and storage capacity are simulated and labelled; quantities, batches and expiry come from MongoDB.
-* P1-01 equity guardrail with cost of fairness · P1-02 disruption-regret score · P1-03 Leaflet map with list
-  fallback · P1-05 F2/C3 storage rules and S4 cold-room failure
-* MongoDB persistence (runs, overrides, forecast metrics), labelled snapshot fallback, JSON logs, `/api/metrics`
+## 11. Limitations and roadmap
 
-## Not implemented / incomplete
+* **Synthetic data**: no live distributor stock/orders; an ERP/CSV import is the next step. Live data = weather only.
+* **No authentication or roles** yet; drivers choose their depot. Add login and per-driver assignment before real use.
+* Single planning period; no in-transit stock, vehicle routing or warehouse-to-warehouse transfers (rescue transfer
+  suggestions are a heuristic outside the optimizer).
+* Distances are straight-line × 1.3; map arcs are not road routes.
+* Chaos "supplier delay" is simulated (no supplier records): the newest third of a warehouse's batches.
+* 3D rack/bin positions and storage capacity are simulated; quantities, batches and expiry are from the database.
+* Proof photos are stored as data URLs in MongoDB (fine for a demo; use object storage at scale).
+* The APK is a debug build that talks HTTP on the LAN; production needs HTTPS and a signed release build.
+* Not built: Hindi/Marathi dispatch notes, automated browser E2E tests, rate limiting.
 
-* **Real-time stock/demand data**: no public live dataset of distributor batches and orders exists; the app runs on the
-  synthetic dataset. Plugging in a distributor's ERP export (CSV import) is the next step. Live data today = weather only.
+---
 
-* P1-04 Hindi/Marathi WhatsApp dispatch notes (needs a native-speaker check; not built).
-* P1-06 live "add dairy" demo: a new YAML file loads and validates (tested), but the synthetic generator only
-  has catalogs for the three modules, so a fourth module would not have data to plan with.
-* Automated browser end-to-end tests; rate limiting; authentication/roles (future).
-* Docker images and Compose were written but not built or run here (daemon unavailable).
-* Validation fieldwork (interviews, survey, usability tests): template only, no findings.
-
-## Known limitations
-
-* Single planning period; no in-transit stock; no vehicle routing; no transfers between outlets.
-* Distances are straight-line × 1.3, not road distances; map lines are not routes.
-* Orders mode takes order quantities as given.
-* Demand, prices and margins are synthetic; results do not prove real-world impact.
-* The "lost sale share" (0.40) is a global benchmark used as an upper bound.
-* Forecast WAPE is high in absolute terms because daily outlet-product counts are small and noisy; compare it
-  with the reported noise floor.
-* Diagnostics (rules-off run, insight re-solves) use a 3 s solver limit; their status is reported.
-
-## Troubleshooting
+## 12. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| UI banner "Snapshot fallback - MongoDB down" | Start MongoDB or fix `MONGODB_URI`; runs are not persisted until it is back |
-| `DATA_NOT_SEEDED` (503) | Run `python -m scripts.seed_database` from `backend/` |
-| "Cannot reach the SahiSupply API" | Start the backend on port 8000 (the Vite proxy targets it) |
-| First run is slow | Forecasters train once per module (~1-4 s) at startup, then are cached |
-| Atlas connection timeout | Allow your IP in Atlas Network Access; raise `MONGODB_TIMEOUT_MS` |
+| Banner "Snapshot fallback - MongoDB down" | Start MongoDB or fix `MONGODB_URI` |
+| `DATA_NOT_SEEDED` (503) | `cd backend && python -m scripts.seed_database` |
+| "Cannot reach the SahiSupply API" (web) | Start the backend on port 8000 |
+| App: "Cannot reach the SahiSupply server" | Backend running with `--host 0.0.0.0`? Firewall rule added? Same network / hotspot? Correct IP (`ipconfig`)? |
+| App connects but requests fail (backend log shows `OPTIONS ... 400`) | Add `http://localhost` to `CORS_ORIGINS` in `.env`, restart the backend |
+| `New-NetFirewallRule: Access is denied` | Open PowerShell with **Run as administrator** |
+| First run is slow | Forecasters train once per module at startup, then are cached |
+| Atlas timeout | Allow your IP in Atlas; raise `MONGODB_TIMEOUT_MS` |
 
-## Mobile field app (Android, Capacitor)
+---
 
-The same React code ships as an Android app (`frontend/android`, Capacitor 6). It opens on the field screens (`/m`, also usable in a phone browser):
+## 13. Credits
 
-- **Driver**: pick your depot, see this week's trips on a map, step them through Dispatch → In Transit → **Confirm Delivery** (a photo is required and stored in MongoDB `delivery_proofs`) → Complete. Tapping a trip highlights its truck and route in green.
-- **Warehouse**: expiry, blocked-batch and stock-out alerts for one warehouse, from the live database.
-- **Settings**: the address of the computer running the backend (the phone must be on the same network).
-
-Build and install:
-
-```bash
-cd frontend && npm run build && npx cap sync android
-cd android && ./gradlew assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
-```
-
-Run the backend so phones can reach it (`--host 0.0.0.0`, allow port 8000 in the firewall), then enter `http://<this-PC-IP>:8000` in the app's Settings. Requires JDK 17 and the Android SDK.
+* "Delivery Truck" 3D model by [Jasmin Daniel](https://sketchfab.com/jasmin.daniel),
+  [CC-BY-4.0](http://creativecommons.org/licenses/by/4.0/) (also credited in the map attribution).
+* Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors.
+* Weather data: [Open-Meteo](https://open-meteo.com/).

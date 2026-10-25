@@ -27,6 +27,9 @@ export default function Warehouse3DModal({ details, onClose }: { details: Wareho
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Bay | null>(null);
   const [preset, setPreset] = useState<Preset>("overview");
+  const asideRef = useRef<HTMLElement>(null);
+  // On phones the details panel sits below the scene: show the top of it when a shelf is picked.
+  useEffect(() => { asideRef.current?.scrollTo?.({ top: 0 }); }, [selected]);
   const hostRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<SceneHandle | null>(null);
 
@@ -72,7 +75,7 @@ export default function Warehouse3DModal({ details, onClose }: { details: Wareho
   return (
     <div className="fixed inset-0 z-[1300] flex items-stretch justify-center bg-slate-900/70 sm:p-4" role="dialog" aria-label={`3D warehouse: ${w.name}`}>
       <div className="flex w-full max-w-7xl flex-col overflow-hidden bg-white shadow-2xl sm:rounded-2xl">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 pb-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-lg font-bold text-slate-900">{w.name}</h2>
@@ -90,7 +93,7 @@ export default function Warehouse3DModal({ details, onClose }: { details: Wareho
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="relative h-[58vh] min-h-[320px] flex-1 bg-slate-100 lg:h-auto">
+          <div className="relative h-[52dvh] min-h-[300px] shrink-0 bg-slate-100 lg:h-auto lg:flex-1">
             {mode === "3d" ? (
               <>
                 <div ref={hostRef} className="absolute inset-0" />
@@ -104,7 +107,7 @@ export default function Warehouse3DModal({ details, onClose }: { details: Wareho
                   ))}
                 </div>
                 <p className="pointer-events-none absolute bottom-3 left-3 rounded-lg bg-white/85 px-2.5 py-1 text-[11px] text-slate-600">
-                  Drag to orbit · scroll or pinch to zoom · right-drag to pan · click a shelf for details
+                  Drag to orbit · scroll or pinch to zoom · right-drag or two fingers to pan · tap a shelf for details
                 </p>
                 {loading && (
                   <div className="absolute inset-0 grid place-items-center bg-slate-100/80" role="status">
@@ -126,7 +129,7 @@ export default function Warehouse3DModal({ details, onClose }: { details: Wareho
             )}
           </div>
 
-          <aside className="w-full shrink-0 overflow-y-auto border-t border-slate-100 p-4 lg:w-80 lg:border-l lg:border-t-0">
+          <aside ref={asideRef} className="min-h-0 w-full flex-1 overflow-y-auto border-t border-slate-100 p-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:w-80 lg:flex-none lg:border-l lg:border-t-0">
             {selected ? <BayDetails bay={selected} total={details.metrics.total_units} onClear={() => { setSelected(null); sceneRef.current?.select(null); }} />
               : (
               <div className="space-y-4">

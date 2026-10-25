@@ -1,14 +1,17 @@
-import { AlertTriangle, Ban, Clock, PackageX, RefreshCw, Snowflake } from "lucide-react";
+import { AlertTriangle, Ban, Box, Clock, PackageX, RefreshCw, Snowflake } from "lucide-react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { ErrorBox, Pill, ProgressBar, Spinner } from "../components/ui";
 import { useAsync } from "../hooks/useAsync";
 import { useNetwork } from "../hooks/useNetwork";
 import { usePlanner } from "../hooks/usePlanner";
-import type { ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import type { WarehouseBatch, WarehouseDetails } from "../types/api";
 import { fmtDate, fmtInt, fmtPct } from "../utils/format";
 import { usePref } from "./mobileUtils";
+
+// three.js loads only when the 3D view is opened.
+const Warehouse3DModal = lazy(() => import("../components/warehouse/Warehouse3DModal"));
 
 /** Warehouse staff: expiry, blocked-stock and stock-out alerts for one warehouse, from the live database. */
 export default function WarehouseView() {
@@ -21,6 +24,7 @@ export default function WarehouseView() {
   const planId = p.run && !p.run.chaos ? p.run.plan_id : undefined;
   const q = useAsync(() => (wid ? api.warehouseDetails(p.module, wid, contested, planId) : Promise.resolve({ data: null as WarehouseDetails | null, meta: {} })), [p.module, wid, contested, planId]);
   const det = q.data;
+  const [view3d, setView3d] = useState(false);
 
   const expiring = (det?.expiring_batches ?? []).filter((b) => b.status === "expiring").sort((a, b) => a.days_to_expiry - b.days_to_expiry);
   const blocked = (det?.expiring_batches ?? []).filter((b) => b.status === "blocked");
@@ -81,9 +85,18 @@ export default function WarehouseView() {
               ))}
             </Section>
           )}
+          <button type="button" onClick={() => setView3d(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 py-3 text-sm font-bold text-white">
+            <Box size={17} aria-hidden />View 3D Warehouse
+          </button>
           <Link to="/rescue" className="block rounded-2xl bg-emerald-600 py-3 text-center text-sm font-bold text-white">♻️ Open Expiry Rescue</Link>
           <p className="px-1 text-center text-[11px] text-slate-400">{det.operator}. Planning date {fmtDate(det.planning_date)}.</p>
         </>
+      )}
+      {view3d && det && (
+        <Suspense fallback={<div className="fixed inset-0 z-[1300] grid place-items-center bg-slate-900/60"><Spinner label="Opening 3D warehouse…" /></div>}>
+          <Warehouse3DModal details={det} onClose={() => setView3d(false)} />
+        </Suspense>
       )}
     </div>
   );
