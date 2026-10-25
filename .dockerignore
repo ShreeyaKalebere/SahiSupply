@@ -5,3 +5,9 @@
 frontend/dist
 .git
 .env
+frontend/android
+qr-test-sheet
+backend/tests
+validation
+*.apk
+.claude

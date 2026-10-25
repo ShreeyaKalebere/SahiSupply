@@ -15,4 +15,5 @@ COPY backend/ ./backend/
 COPY configs/ ./configs/
 COPY --from=ui /ui/dist ./frontend/dist
 EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--host", "0.0.0.0", "--port", "8000"]
+# Render (and most hosts) pass the port in $PORT; 8000 locally.
+CMD ["sh", "-c", "python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port ${PORT:-8000}"]

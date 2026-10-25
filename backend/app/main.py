@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -46,8 +47,18 @@ async def lifespan(app: FastAPI):
     load_all_configs()  # fail fast on an invalid industry config
     db_ok, why = ping()
     if db_ok:
-        ensure_schema(get_db())
+        db = get_db()
+        ensure_schema(db)
         log.info("MongoDB connected; schema ensured")
+        # First start on a fresh database (e.g. a new Atlas cluster on Render): load the synthetic dataset.
+        if os.getenv("AUTO_SEED", "1") == "1" and db.dataset_meta.count_documents({}) == 0:
+            try:
+                from scripts.seed_database import seed
+                log.info("Database is empty: seeding the synthetic dataset (seed %s)...", get_settings().data_seed)
+                seed(seed_value=get_settings().data_seed)
+                log.info("Auto-seed complete")
+            except Exception:  # noqa: BLE001 - never block startup; the snapshot fallback still serves data
+                log.exception("Auto-seed failed")
     else:
         log.warning("MongoDB unavailable (%s): serving the read-only synthetic snapshot", why)
     if get_settings().app_env != "test":

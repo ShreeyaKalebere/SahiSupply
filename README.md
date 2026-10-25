@@ -504,6 +504,22 @@ Campus/office Wi-Fi often blocks device-to-device traffic; the PC hotspot avoids
 
 ---
 
+## 7b. Deploy on Render
+
+The repo includes a Render Blueprint ([render.yaml](render.yaml)): one Docker web service that builds the React UI and
+serves it from FastAPI. Render does not host MongoDB, so use a free MongoDB Atlas cluster.
+
+1. **MongoDB Atlas:** create a free cluster, a database user, and under *Network Access* allow `0.0.0.0/0` (Render's
+   outbound IPs vary). Copy the connection string (`mongodb+srv://...`).
+2. **Render:** *New → Blueprint*, connect this GitHub repo, and apply `render.yaml`. When asked, paste the Atlas
+   string as `MONGODB_URI` (optionally `ANTHROPIC_API_KEY`). `QR_SECRET` is generated automatically.
+3. First start seeds the empty database automatically (`AUTO_SEED=1`, about 5 s), then the site is live at
+   `https://<service>.onrender.com`. Click **Run plan** once per industry.
+4. **Android app:** in Settings, enter `https://<service>.onrender.com`.
+
+Notes: the free plan sleeps after inactivity (first request takes ~1 min) and has 512 MB memory (a plan run peaked at
+~330 MB in testing). If MongoDB is unreachable the app serves the read-only synthetic snapshot.
+
 ## 8. API reference
 
 All responses use `{ "data": ..., "meta": { "synthetic_data": true, ... } }`; errors use

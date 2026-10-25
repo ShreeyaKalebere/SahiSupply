@@ -1,0 +1,28 @@
+# Render Blueprint: one Docker web service (React UI built into the image, served by FastAPI).
+# MongoDB is not hosted by Render - create a free MongoDB Atlas cluster and paste its URI as MONGODB_URI.
+services:
+  - type: web
+    name: sahisupply
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: MONGODB_URI          # mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+        sync: false               # entered in the Render dashboard, never committed
+      - key: MONGODB_DB
+        value: sahisupply
+      - key: MONGODB_TIMEOUT_MS
+        value: "8000"
+      - key: APP_ENV
+        value: production
+      - key: AUTO_SEED            # load the synthetic dataset on first start if the database is empty
+        value: "1"
+      - key: QR_SECRET            # signs batch QR codes
+        generateValue: true
+      - key: CORS_ORIGINS         # the site is same-origin; these let the Android app call the API
+        value: http://localhost,https://localhost,capacitor://localhost
+      - key: ANTHROPIC_API_KEY    # optional: Claude for the assistant (built-in assistant otherwise)
+        sync: false
